@@ -42,19 +42,19 @@ struct AddHabitView: View {
         
         // Food & Drink
         "fork.knife", "cup.and.saucer.fill", "wineglass.fill", "birthday.cake", "carrot.fill",
-        "apple.logo", "leaf.fill", "fish.fill", "pawprint.fill", "bird.fill",
+        "apple.logo", "fish.fill", "pawprint.fill", "bird.fill",
         
         // Social & Communication
-        "person.2.fill", "person.3.fill", "message.fill", "phone.fill", "video.fill",
-        "envelope.fill", "bubble.left.fill", "bubble.right.fill", "hand.raised.fill", "hand.thumbsup.fill",
+        "person.2.fill", "person.3.fill", "message.fill", "bubble.left.fill", "bubble.right.fill", 
+        "hand.raised.fill", "hand.thumbsup.fill",
         
         // Technology & Digital
-        "iphone", "ipad", "applewatch", "airpods", "headphones", "wifi", "bluetooth",
-        "antenna.radiowaves.left.and.right", "wave.3.right", "wave.3.left",
+        "iphone", "ipad", "applewatch", "airpods", "headphones", "wifi", "antenna.radiowaves.left.and.right", 
+        "wave.3.right", "wave.3.left",
         
         // Miscellaneous
-        "star.fill", "heart.fill", "bolt.fill", "sparkles", "wand.and.stars", "crown.fill",
-        "gift.fill", "party.popper.fill", "balloon.fill", "confetti.ball.fill"
+        "star.fill", "bolt.fill", "sparkles", "wand.and.stars", "crown.fill",
+        "gift.fill", "party.popper.fill", "balloon.fill", "party.popper"
     ]
     
     var body: some View {

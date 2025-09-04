@@ -28,6 +28,14 @@ struct ContentView: View {
                     Text("Stats")
                 }
                 .tag(1)
+            
+            // Insights Tab
+            InsightsView(habitManager: habitManager)
+                .tabItem {
+                    Image(systemName: "lightbulb.fill")
+                    Text("Insights")
+                }
+                .tag(2)
         }
         .preferredColorScheme(habitManager.theme == .light ? .light : habitManager.theme == .dark ? .dark : nil)
     }
@@ -375,124 +383,169 @@ struct HabitCardView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var isAnimating = false
     @State private var progressAnimation: Double = 0
+    @State private var showingDeleteConfirmation = false
+    @State private var deleteOffset: CGFloat = 0
     
     var body: some View {
-        VStack(spacing: 16) {
-            // Header with Icon and Info
-            HStack(spacing: 16) {
-                // Habit Icon with Progress Ring
-                habitIconView
-                
-                // Habit Info
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(habit.title)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.textPrimary)
-                    
-                    if !habit.description.isEmpty {
-                        Text(habit.description)
-                            .font(.subheadline)
-                            .foregroundColor(.textSecondary)
-                            .lineLimit(2)
-                    }
-                    
-                    // Tags
-                    HStack(spacing: 8) {
-                        Text(habit.frequency.displayName)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(Color.primaryBlue.opacity(0.1))
-                            )
-                            .foregroundColor(.primaryBlue)
-                        
-                        Text(habit.isPositive ? "Positive" : "Negative")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(habit.isPositive ? Color.primaryGreen.opacity(0.1) : Color.primaryRed.opacity(0.1))
-                            )
-                            .foregroundColor(habit.isPositive ? .primaryGreen : .primaryRed)
-                    }
-                }
-                
+        ZStack {
+            // Delete Button Background
+            HStack {
                 Spacer()
-            }
-            
-            // Swipeable Status Selection
-            VStack(spacing: 12) {
-                Text("Swipe or tap to log")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.textPrimary)
                 
-                // Swipeable Card
-                swipeableCardView
-                
-                // Quick Action Buttons
-                HStack(spacing: 16) {
-                    ForEach(HabitStatus.allCases, id: \.self) { status in
-                        Button(action: {
-                            updateStatus(status)
-                        }) {
-                            VStack(spacing: 4) {
-                                ZStack {
-                                    Circle()
-                                        .fill(currentStatus == status ? status.color : status.color.opacity(0.1))
-                                        .frame(width: 40, height: 40)
-                                    
-                                    Image(systemName: status.icon)
-                                        .font(.title3)
-                                        .foregroundColor(currentStatus == status ? .white : status.color)
-                                }
-                                
-                                Text(status.rawValue.capitalized)
-                                    .font(.caption2)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(currentStatus == status ? status.color : .textSecondary)
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .scaleEffect(currentStatus == status ? 1.1 : 1.0)
+                Button(action: { showingDeleteConfirmation = true }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "trash.fill")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                        
+                        Text("Delete")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
                     }
-                }
-            }
-            
-            // Notes Button
-            if currentStatus != nil {
-                Button(action: { showingNotes = true }) {
-                    HStack {
-                        Image(systemName: "note.text")
-                        Text("Add Notes")
-                    }
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primaryBlue)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .frame(width: 80, height: 120)
                     .background(
-                        Capsule()
-                            .fill(Color.primaryBlue.opacity(0.1))
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.red)
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
+                .opacity(deleteOffset < -50 ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.2), value: deleteOffset)
             }
+            
+            // Main Card Content
+            VStack(spacing: 16) {
+                // Header with Icon and Info
+                HStack(spacing: 16) {
+                    // Habit Icon with Progress Ring
+                    habitIconView
+                    
+                    // Habit Info
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(habit.title)
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.textPrimary)
+                        
+                        if !habit.description.isEmpty {
+                            Text(habit.description)
+                                .font(.subheadline)
+                                .foregroundColor(.textSecondary)
+                                .lineLimit(2)
+                        }
+                        
+                        // Tags
+                        HStack(spacing: 8) {
+                            Text(habit.frequency.displayName)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.primaryBlue.opacity(0.1))
+                                )
+                                .foregroundColor(.primaryBlue)
+                            
+                            Text(habit.isPositive ? "Positive" : "Negative")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule()
+                                        .fill(habit.isPositive ? Color.primaryGreen.opacity(0.1) : Color.primaryRed.opacity(0.1))
+                                )
+                                .foregroundColor(habit.isPositive ? .primaryGreen : .primaryRed)
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                
+                // Swipeable Status Selection
+                VStack(spacing: 12) {
+                    Text("Swipe or tap to log")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.textPrimary)
+                    
+                    // Swipeable Card
+                    swipeableCardView
+                    
+                    // Quick Action Buttons
+                    HStack(spacing: 16) {
+                        ForEach(HabitStatus.allCases, id: \.self) { status in
+                            Button(action: {
+                                updateStatus(status)
+                            }) {
+                                VStack(spacing: 4) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(currentStatus == status ? status.color : status.color.opacity(0.1))
+                                            .frame(width: 40, height: 40)
+                                        
+                                        Image(systemName: status.icon)
+                                            .font(.title3)
+                                            .foregroundColor(currentStatus == status ? .white : status.color)
+                                    }
+                                    
+                                    Text(status.rawValue.capitalized)
+                                        .font(.caption2)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(currentStatus == status ? status.color : .textSecondary)
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .scaleEffect(currentStatus == status ? 1.1 : 1.0)
+                        }
+                    }
+                }
+                
+                // Notes Button
+                if currentStatus != nil {
+                    Button(action: { showingNotes = true }) {
+                        HStack {
+                            Image(systemName: "note.text")
+                            Text("Add Notes")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primaryBlue)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(Color.primaryBlue.opacity(0.1))
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.cardBackground)
+                    .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+            )
+            .offset(x: deleteOffset)
+            .gesture(deleteSwipeGesture)
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
-        )
         .sheet(isPresented: $showingNotes) {
             NotesView(habit: habit, habitManager: habitManager)
+        }
+        .alert("Delete Habit", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    deleteOffset = 0
+                }
+            }
+            Button("Delete", role: .destructive) {
+                habitManager.deleteHabit(habit)
+            }
+        } message: {
+            Text("Are you sure you want to delete '\(habit.title)'? This action cannot be undone.")
         }
         .onAppear {
             updateProgressAnimation()
@@ -556,10 +609,31 @@ struct HabitCardView: View {
                 doneButtonView
             }
             .offset(x: dragOffset)
-            .gesture(swipeGesture)
-            .onTapGesture {
-                cycleStatus()
-            }
+                                .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                // Only respond to horizontal swipes within the card bounds
+                                if abs(value.translation.width) > abs(value.translation.height) {
+                                    dragOffset = value.translation.width
+                                }
+                            }
+                            .onEnded { value in
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    if value.translation.width > 100 {
+                                        updateStatus(.completed)
+                                        dragOffset = 0
+                                    } else if value.translation.width < -100 {
+                                        updateStatus(.skipped)
+                                        dragOffset = 0
+                                    } else {
+                                        dragOffset = 0
+                                    }
+                                }
+                            }
+                    )
+                    .onTapGesture {
+                        cycleStatus()
+                    }
         }
     }
     
@@ -612,29 +686,35 @@ struct HabitCardView: View {
         .opacity(dragOffset > 50 ? 1.0 : 0.3)
     }
     
-    private var swipeGesture: some Gesture {
+    
+    private var deleteSwipeGesture: some Gesture {
         DragGesture()
             .onChanged { value in
-                dragOffset = value.translation.width
+                // Only allow left swipe for delete
+                if value.translation.width < 0 {
+                    deleteOffset = max(value.translation.width, -100)
+                }
             }
             .onEnded { value in
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    if value.translation.width > 100 {
-                        updateStatus(.completed)
-                        dragOffset = 0
-                    } else if value.translation.width < -100 {
-                        updateStatus(.skipped)
-                        dragOffset = 0
+                // Use a more stable animation
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    if value.translation.width < -80 {
+                        // Show delete button
+                        deleteOffset = -80
                     } else {
-                        dragOffset = 0
+                        // Snap back
+                        deleteOffset = 0
                     }
                 }
             }
     }
     
     private func updateStatus(_ status: HabitStatus) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            habitManager.updateEntry(for: habit, status: status)
+        // Update data first
+        habitManager.updateEntry(for: habit, status: status)
+        
+        // Then animate
+        withAnimation(.easeInOut(duration: 0.2)) {
             isAnimating = true
         }
         
@@ -642,8 +722,10 @@ struct HabitCardView: View {
         let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
         impactFeedback.impactOccurred()
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            isAnimating = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isAnimating = false
+            }
         }
     }
     
@@ -672,7 +754,8 @@ struct HabitCardView: View {
             progress = 0.0
         }
         
-        withAnimation(.easeInOut(duration: 0.8)) {
+        // Use a more stable animation
+        withAnimation(.easeInOut(duration: 0.5)) {
             progressAnimation = progress
         }
     }

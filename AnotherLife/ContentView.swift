@@ -17,7 +17,7 @@ struct ContentView: View {
             MainHabitView(habitManager: habitManager)
                 .tabItem {
                     Image(systemName: "house.fill")
-                    Text("Home")
+                    Text("Habits")
                 }
                 .tag(0)
             
@@ -59,9 +59,6 @@ struct MainHabitView: View {
                         // Header
                         headerView
                         
-                        // Date Picker
-                        datePickerView
-                        
                         // Habits List
                         habitsListView
                         
@@ -72,8 +69,8 @@ struct MainHabitView: View {
                     .padding(.top, 10)
                 }
             }
-            .navigationTitle("AnotherLife")
-            .navigationBarTitleDisplayMode(.large)
+//            .navigationTitle("AnotherLife")
+//            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: { showingSettings = true }) {
@@ -101,39 +98,37 @@ struct MainHabitView: View {
     
     // MARK: - Header View
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Today's Progress")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.textPrimary)
-                    
-                    Text(selectedDateText)
-                        .font(.subheadline)
-                        .foregroundColor(.textSecondary)
-                }
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Today's Progress")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.textPrimary)
                 
-                Spacer()
+                Text(selectedDateText)
+                    .font(.subheadline)
+                    .foregroundColor(.textSecondary)
+            }
+            
+            Spacer()
+            
+            // Overall completion rate
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(overallCompletionRate, specifier: "%.0f")%")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(overallCompletionRate >= 80 ? .primaryGreen : .primaryBlue)
                 
-                // Overall completion rate
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("\(overallCompletionRate, specifier: "%.0f")%")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primaryBlue)
-                    
-                    Text("Complete")
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
-                }
+                Text("Complete")
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
             }
         }
-        .padding(20)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 12)
                 .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
     }
     
@@ -233,7 +228,7 @@ struct MainHabitView: View {
             } else {
                 LazyVStack(spacing: 16) {
                     ForEach(habitManager.habits) { habit in
-                        HabitCardView(habit: habit, habitManager: habitManager)
+                        HabitGridView(habit: habit, habitManager: habitManager)
                     }
                 }
             }
@@ -849,6 +844,326 @@ extension Color {
             )
         }
     }
+}
+
+// MARK: - Habit Grid View
+struct HabitGridView: View {
+    let habit: Habit
+    @ObservedObject var habitManager: HabitManager
+    @State private var showingNotes = false
+    @State private var selectedTileDate: Date?
+    
+    private let daysToShow = 30
+    private let columns = 6 // 6 columns for 30 days (5 rows)
+    
+    var body: some View {
+        // Main Card Content
+        VStack(spacing: 8) {
+            // Header with Icon, Info, and Completion Button
+            HStack(spacing: 10) {
+                // Habit Icon
+                habitIconView
+                
+                // Habit Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(habit.title)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.textPrimary)
+                    
+                    if !habit.description.isEmpty {
+                        Text(habit.description)
+                            .font(.subheadline)
+                            .foregroundColor(.textSecondary)
+                            .lineLimit(1)
+                    }
+                    
+                    // Tags
+                    HStack(spacing: 6) {
+                        Text(habit.frequency.displayName)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(Color.primaryBlue.opacity(0.1))
+                            )
+                            .foregroundColor(.primaryBlue)
+                        
+                        Text(habit.isPositive ? "Positive" : "Negative")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(habit.isPositive ? Color.primaryGreen.opacity(0.1) : Color.primaryRed.opacity(0.1))
+                            )
+                            .foregroundColor(habit.isPositive ? .primaryGreen : .primaryRed)
+                    }
+                }
+                
+                Spacer()
+                
+                // Completion Button
+                completionButton
+            }
+            
+            // Grid of Days
+            VStack(spacing: 4) {
+                // Current streak
+                HStack {
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                        Text("\(currentStreak)")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.orange)
+                    }
+                }
+                
+                // Grid Layout
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 6), spacing: 1) {
+                    ForEach(dayTiles, id: \.date) { dayTile in
+                        DayTileView(
+                            dayTile: dayTile,
+                            habitColor: habitColor,
+                            onTap: { 
+                                selectedTileDate = dayTile.date
+                                updateStatus(for: dayTile.date)
+                            }
+                        )
+                    }
+                }
+            }
+            
+            // Notes Button
+            if selectedTileDate != nil {
+                Button(action: { showingNotes = true }) {
+                    HStack {
+                        Image(systemName: "note.text")
+                        Text("Add Notes")
+                    }
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primaryBlue)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.primaryBlue.opacity(0.1))
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
+        )
+        .sheet(isPresented: $showingNotes) {
+            NotesView(habit: habit, habitManager: habitManager)
+        }
+    }
+    
+    private var habitColor: Color {
+        Color(hex: habit.color) ?? .primaryBlue
+    }
+    
+    private var habitIconView: some View {
+        ZStack {
+            Circle()
+                .fill(habitColor.opacity(0.15))
+                .frame(width: 40, height: 40)
+            
+            Image(systemName: habit.icon)
+                .font(.title3)
+                .foregroundColor(habitColor)
+        }
+    }
+    
+    private var completionButton: some View {
+        Button(action: {
+            toggleTodayStatus()
+        }) {
+            ZStack {
+                Circle()
+                    .fill(todayStatus == .completed ? .primaryGreen : habitColor.opacity(0.1))
+                    .frame(width: 36, height: 36)
+                
+                Image(systemName: todayStatus == .completed ? "checkmark" : "circle")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .foregroundColor(todayStatus == .completed ? .white : habitColor)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .scaleEffect(todayStatus == .completed ? 1.0 : 0.9)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: todayStatus)
+    }
+    
+    private var todayStatus: HabitStatus? {
+        habitManager.getEntry(for: habit, on: Date())?.status
+    }
+    
+    private var dayTiles: [DayTile] {
+        let calendar = Calendar.current
+        let today = Date()
+        var tiles: [DayTile] = []
+        
+        for i in 0..<daysToShow {
+            let date = calendar.date(byAdding: .day, value: -i, to: today) ?? today
+            let entry = habitManager.getEntry(for: habit, on: date)
+            let isToday = calendar.isDateInToday(date)
+            
+            tiles.append(DayTile(
+                date: date,
+                status: entry?.status,
+                isToday: isToday,
+                dayNumber: calendar.component(.day, from: date)
+            ))
+        }
+        
+        return tiles.reversed() // Show oldest first
+    }
+    
+    private var currentStreak: Int {
+        habitManager.getStatistics(for: habit, in: DateInterval(start: Date().addingTimeInterval(-365*24*60*60), end: Date())).currentStreak
+    }
+    
+    
+    private func updateStatus(for date: Date) {
+        let currentEntry = habitManager.getEntry(for: habit, on: date)
+        let currentStatus = currentEntry?.status
+        
+        // Cycle through statuses: none -> completed -> failed -> skipped -> none
+        let nextStatus: HabitStatus?
+        switch currentStatus {
+        case .none:
+            nextStatus = .completed
+        case .completed:
+            nextStatus = .failed
+        case .failed:
+            nextStatus = .skipped
+        case .skipped:
+            nextStatus = nil
+        }
+        
+        if let status = nextStatus {
+            habitManager.updateEntry(for: habit, status: status)
+        } else {
+            // Remove entry (set to none)
+            if let index = habitManager.entries.firstIndex(where: { $0.habitId == habit.id && Calendar.current.isDate($0.date, inSameDayAs: date) }) {
+                habitManager.entries.remove(at: index)
+                habitManager.saveEntries()
+            }
+        }
+        
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+    }
+    
+    private func toggleTodayStatus() {
+        let today = Date()
+        let currentEntry = habitManager.getEntry(for: habit, on: today)
+        let currentStatus = currentEntry?.status
+        
+        if currentStatus == .completed {
+            // Mark as failed (leave it)
+            habitManager.updateEntry(for: habit, status: .failed)
+        } else {
+            // Mark as completed
+            habitManager.updateEntry(for: habit, status: .completed)
+        }
+        
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+    }
+}
+
+// MARK: - Day Tile View
+struct DayTileView: View {
+    let dayTile: DayTile
+    let habitColor: Color
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            ZStack {
+                // Background
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(tileBackgroundColor)
+                    .frame(width: 32, height: 32)
+                
+                // Content
+                VStack(spacing: 2) {
+                    Text("\(dayTile.dayNumber)")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundColor(tileTextColor)
+                    
+                    if let status = dayTile.status {
+                        Image(systemName: status.icon)
+                            .font(.caption2)
+                            .foregroundColor(tileTextColor)
+                    }
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .scaleEffect(dayTile.isToday ? 1.1 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: dayTile.isToday)
+    }
+    
+    private var tileBackgroundColor: Color {
+        if dayTile.isToday {
+            return habitColor.opacity(0.3)
+        }
+        
+        switch dayTile.status {
+        case .completed:
+            return habitColor
+        case .failed:
+            return habitColor.opacity(0.3)
+        case .skipped:
+            return habitColor.opacity(0.1)
+        case .none:
+            return Color.gray.opacity(0.1)
+        }
+    }
+    
+    private var tileTextColor: Color {
+        if dayTile.isToday {
+            return habitColor
+        }
+        
+        switch dayTile.status {
+        case .completed:
+            return .white
+        case .failed:
+            return habitColor
+        case .skipped:
+            return habitColor.opacity(0.6)
+        case .none:
+            return .gray
+        }
+    }
+}
+
+// MARK: - Day Tile Model
+struct DayTile {
+    let date: Date
+    let status: HabitStatus?
+    let isToday: Bool
+    let dayNumber: Int
 }
 
 #Preview {

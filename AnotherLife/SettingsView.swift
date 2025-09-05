@@ -107,6 +107,26 @@ struct SettingsView: View {
                 icon: "calendar",
                 color: .orange
             )
+            
+            // Habit Management Button
+            NavigationLink(destination: HabitManagementView(habitManager: habitManager)) {
+                HStack {
+                    Image(systemName: "list.bullet.rectangle")
+                        .foregroundColor(.primaryBlue)
+                        .frame(width: 24)
+                    
+                    Text("Manage Habits")
+                        .font(.body)
+                        .foregroundColor(.textPrimary)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                }
+                .padding(.vertical, 4)
+            }
         }
         .padding(.vertical, 8)
     }
@@ -232,6 +252,234 @@ struct StatRowView: View {
                 .foregroundColor(.textPrimary)
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Habit Management View
+struct HabitManagementView: View {
+    @ObservedObject var habitManager: HabitManager
+    @State private var showingAddHabit = false
+    @State private var showingEditHabit: Habit?
+    @State private var showingDeleteConfirmation: Habit?
+    
+    var body: some View {
+        List {
+            if habitManager.habits.isEmpty {
+                emptyStateView
+            } else {
+                ForEach(habitManager.habits) { habit in
+                    HabitManagementRowView(
+                        habit: habit,
+                        onEdit: { showingEditHabit = habit },
+                        onDelete: { showingDeleteConfirmation = habit }
+                    )
+                }
+            }
+        }
+        .navigationTitle("Manage Habits")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showingAddHabit = true }) {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddHabit) {
+            AddHabitView(habitManager: habitManager)
+        }
+        .sheet(item: $showingEditHabit) { habit in
+            EditHabitView(habit: habit, habitManager: habitManager)
+        }
+        .alert("Delete Habit", isPresented: Binding<Bool>(
+            get: { showingDeleteConfirmation != nil },
+            set: { if !$0 { showingDeleteConfirmation = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                if let habit = showingDeleteConfirmation {
+                    habitManager.deleteHabit(habit)
+                }
+            }
+        } message: {
+            if let habit = showingDeleteConfirmation {
+                Text("Are you sure you want to delete '\(habit.title)'? This action cannot be undone.")
+            }
+        }
+    }
+    
+    private var emptyStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "star.circle")
+                .font(.system(size: 50))
+                .foregroundColor(.primaryBlue)
+            
+            Text("No Habits Yet")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundColor(.textPrimary)
+            
+            Text("Add your first habit to get started with tracking your progress.")
+                .font(.body)
+                .foregroundColor(.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, 40)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Habit Management Row View
+struct HabitManagementRowView: View {
+    let habit: Habit
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Habit Icon
+            ZStack {
+                Circle()
+                    .fill(habitColor.opacity(0.15))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: habit.icon)
+                    .font(.title3)
+                    .foregroundColor(habitColor)
+            }
+            
+            // Habit Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(habit.title)
+                    .font(.headline)
+                    .foregroundColor(.textPrimary)
+                
+                if !habit.description.isEmpty {
+                    Text(habit.description)
+                        .font(.subheadline)
+                        .foregroundColor(.textSecondary)
+                        .lineLimit(2)
+                }
+                
+                HStack(spacing: 8) {
+                    Text(habit.frequency.displayName)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.primaryBlue.opacity(0.1))
+                        )
+                        .foregroundColor(.primaryBlue)
+                    
+                    Text(habit.isPositive ? "Positive" : "Negative")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(habit.isPositive ? Color.primaryGreen.opacity(0.1) : Color.primaryRed.opacity(0.1))
+                        )
+                        .foregroundColor(habit.isPositive ? .primaryGreen : .primaryRed)
+                }
+            }
+            
+            Spacer()
+            
+            // Action Buttons
+            HStack(spacing: 8) {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.title3)
+                        .foregroundColor(.primaryBlue)
+                        .frame(width: 32, height: 32)
+                        .background(
+                            Circle()
+                                .fill(Color.primaryBlue.opacity(0.1))
+                        )
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.title3)
+                        .foregroundColor(.red)
+                        .frame(width: 32, height: 32)
+                        .background(
+                            Circle()
+                                .fill(Color.red.opacity(0.1))
+                        )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.vertical, 8)
+    }
+    
+    private var habitColor: Color {
+        Color(hex: habit.color) ?? .primaryBlue
+    }
+}
+
+// MARK: - Edit Habit View
+struct EditHabitView: View {
+    @State private var habit: Habit
+    @ObservedObject var habitManager: HabitManager
+    @Environment(\.dismiss) private var dismiss
+    
+    init(habit: Habit, habitManager: HabitManager) {
+        self._habit = State(initialValue: habit)
+        self.habitManager = habitManager
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Habit Details") {
+                    TextField("Habit Title", text: $habit.title)
+                    TextField("Description (Optional)", text: $habit.description, axis: .vertical)
+                        .lineLimit(3...6)
+                }
+                
+                Section("Settings") {
+                    Picker("Frequency", selection: $habit.frequency) {
+                        ForEach(HabitFrequency.allCases, id: \.self) { frequency in
+                            Text(frequency.displayName).tag(frequency)
+                        }
+                    }
+                    
+                    Toggle("Positive Habit", isOn: $habit.isPositive)
+                }
+                
+                Section("Appearance") {
+                    // Color picker would go here
+                    Text("Color: \(habit.color)")
+                        .foregroundColor(.textSecondary)
+                    
+                    Text("Icon: \(habit.icon)")
+                        .foregroundColor(.textSecondary)
+                }
+            }
+            .navigationTitle("Edit Habit")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        habitManager.updateHabit(habit)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
     }
 }
 

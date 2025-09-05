@@ -145,7 +145,7 @@ class HabitManager: ObservableObject {
         }
     }
     
-    private func saveEntries() {
+    func saveEntries() {
         if let encoded = try? JSONEncoder().encode(entries) {
             UserDefaults.standard.set(encoded, forKey: entriesKey)
         }

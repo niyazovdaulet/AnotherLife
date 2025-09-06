@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -109,7 +109,7 @@ struct SettingsView: View {
             )
             
             // Habit Management Button
-            NavigationLink(destination: HabitManagementView(habitManager: habitManager)) {
+            NavigationLink(destination: HabitManagementView()) {
                 HStack {
                     Image(systemName: "list.bullet.rectangle")
                         .foregroundColor(.primaryBlue)
@@ -257,7 +257,7 @@ struct StatRowView: View {
 
 // MARK: - Habit Management View
 struct HabitManagementView: View {
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @State private var showingAddHabit = false
     @State private var showingEditHabit: Habit?
     @State private var showingDeleteConfirmation: Habit?
@@ -286,10 +286,10 @@ struct HabitManagementView: View {
             }
         }
         .sheet(isPresented: $showingAddHabit) {
-            AddHabitView(habitManager: habitManager)
+            AddHabitView()
         }
         .sheet(item: $showingEditHabit) { habit in
-            EditHabitView(habit: habit, habitManager: habitManager)
+            EditHabitView(habit: habit)
         }
         .alert("Delete Habit", isPresented: Binding<Bool>(
             get: { showingDeleteConfirmation != nil },
@@ -426,12 +426,11 @@ struct HabitManagementRowView: View {
 // MARK: - Edit Habit View
 struct EditHabitView: View {
     @State private var habit: Habit
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @Environment(\.dismiss) private var dismiss
     
-    init(habit: Habit, habitManager: HabitManager) {
+    init(habit: Habit) {
         self._habit = State(initialValue: habit)
-        self.habitManager = habitManager
     }
     
     var body: some View {
@@ -484,5 +483,6 @@ struct EditHabitView: View {
 }
 
 #Preview {
-    SettingsView(habitManager: HabitManager())
+    SettingsView()
+        .environmentObject(HabitManager())
 }

@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct InsightsView: View {
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @State private var selectedTimeRange: TimeRange = .month
     @State private var selectedHabit: Habit?
     @State private var showingWeeklyReport = false
@@ -65,7 +65,7 @@ struct InsightsView: View {
             .navigationBarTitleDisplayMode(.large)
         }
         .sheet(isPresented: $showingWeeklyReport) {
-            WeeklyReportView(habitManager: habitManager)
+            WeeklyReportView()
         }
     }
     
@@ -165,7 +165,7 @@ struct InsightsView: View {
             } else {
                 LazyVStack(spacing: 16) {
                     ForEach(habitManager.habits) { habit in
-                        HabitStreakGraphView(habit: habit, habitManager: habitManager, timeRange: selectedTimeRange)
+                        HabitStreakGraphView(habit: habit, timeRange: selectedTimeRange)
                     }
                 }
             }
@@ -425,7 +425,7 @@ struct StreakCardView: View {
 // MARK: - Habit Streak Graph View
 struct HabitStreakGraphView: View {
     let habit: Habit
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     let timeRange: InsightsView.TimeRange
     
     var body: some View {
@@ -596,5 +596,6 @@ struct CorrelationInsight: Identifiable {
 }
 
 #Preview {
-    InsightsView(habitManager: HabitManager())
+    InsightsView()
+        .environmentObject(HabitManager())
 }

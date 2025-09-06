@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AddHabitView: View {
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @Environment(\.dismiss) private var dismiss
     
     @State private var title = ""
@@ -430,5 +430,6 @@ struct AddHabitView: View {
 }
 
 #Preview {
-    AddHabitView(habitManager: HabitManager())
+    AddHabitView()
+        .environmentObject(HabitManager())
 }

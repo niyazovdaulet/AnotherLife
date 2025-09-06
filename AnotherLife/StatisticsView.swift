@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct StatisticsView: View {
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @State private var selectedTimeRange: TimeRange = .week
     @State private var selectedHabit: Habit?
     
@@ -158,7 +158,7 @@ struct StatisticsView: View {
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(habitManager.habits) { habit in
-                        HabitPerformanceRow(habit: habit, habitManager: habitManager, timeRange: selectedTimeRange)
+                        HabitPerformanceRow(habit: habit, timeRange: selectedTimeRange)
                     }
                 }
             }
@@ -353,7 +353,7 @@ struct StatisticsView: View {
 // MARK: - Habit Performance Row
 struct HabitPerformanceRow: View {
     let habit: Habit
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     let timeRange: StatisticsView.TimeRange
     
     var body: some View {
@@ -431,5 +431,6 @@ struct CompletionData: Identifiable {
 }
 
 #Preview {
-    StatisticsView(habitManager: HabitManager())
+    StatisticsView()
+        .environmentObject(HabitManager())
 }

@@ -8,13 +8,13 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var habitManager = HabitManager()
+    @EnvironmentObject var habitManager: HabitManager
     @State private var selectedTab = 0
     
     var body: some View {
         TabView(selection: $selectedTab) {
             // Main Habit Tracking Tab
-            MainHabitView(habitManager: habitManager)
+            MainHabitView()
                 .tabItem {
                     Image(systemName: "house.fill")
                     Text("Habits")
@@ -22,7 +22,7 @@ struct ContentView: View {
                 .tag(0)
             
             // Statistics Tab
-            StatisticsView(habitManager: habitManager)
+            StatisticsView()
                 .tabItem {
                     Image(systemName: "chart.bar.fill")
                     Text("Stats")
@@ -30,7 +30,7 @@ struct ContentView: View {
                 .tag(1)
             
             // Insights Tab
-            InsightsView(habitManager: habitManager)
+            InsightsView()
                 .tabItem {
                     Image(systemName: "lightbulb.fill")
                     Text("Insights")
@@ -43,7 +43,7 @@ struct ContentView: View {
 
 // MARK: - Main Habit View
 struct MainHabitView: View {
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @State private var showingAddHabit = false
     @State private var showingSettings = false
     
@@ -53,6 +53,17 @@ struct MainHabitView: View {
                 // Background
                 Color.backgroundGray
                     .ignoresSafeArea()
+                
+                // Subtle gradient overlay for depth
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.backgroundGray,
+                        Color.backgroundGray.opacity(0.8)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -89,10 +100,10 @@ struct MainHabitView: View {
             }
         }
         .sheet(isPresented: $showingAddHabit) {
-            AddHabitView(habitManager: habitManager)
+            AddHabitView()
         }
         .sheet(isPresented: $showingSettings) {
-            SettingsView(habitManager: habitManager)
+            SettingsView()
         }
     }
     
@@ -228,7 +239,7 @@ struct MainHabitView: View {
             } else {
                 LazyVStack(spacing: 16) {
                     ForEach(habitManager.habits) { habit in
-                        HabitGridView(habit: habit, habitManager: habitManager)
+                        HabitGridView(habit: habit)
                     }
                 }
             }
@@ -373,7 +384,7 @@ struct MainHabitView: View {
 // MARK: - Habit Card View
 struct HabitCardView: View {
     let habit: Habit
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @State private var showingNotes = false
     @State private var dragOffset: CGFloat = 0
     @State private var isAnimating = false
@@ -528,7 +539,7 @@ struct HabitCardView: View {
             .gesture(deleteSwipeGesture)
         }
         .sheet(isPresented: $showingNotes) {
-            NotesView(habit: habit, habitManager: habitManager)
+            NotesView(habit: habit)
         }
         .alert("Delete Habit", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) {
@@ -849,12 +860,12 @@ extension Color {
 // MARK: - Habit Grid View
 struct HabitGridView: View {
     let habit: Habit
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @State private var showingNotes = false
     @State private var selectedTileDate: Date?
     
-    private let daysToShow = 30
-    private let columns = 6 // 6 columns for 30 days (5 rows)
+    private let daysToShow = 50
+    private let columns = 10 // 10 columns for 50 days (5 rows)
     
     var body: some View {
         // Main Card Content
@@ -927,16 +938,28 @@ struct HabitGridView: View {
                 }
                 
                 // Grid Layout
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 6), spacing: 1) {
-                    ForEach(dayTiles, id: \.date) { dayTile in
-                        DayTileView(
-                            dayTile: dayTile,
-                            habitColor: habitColor,
-                            onTap: { 
-                                selectedTileDate = dayTile.date
-                                updateStatus(for: dayTile.date)
+                VStack(spacing: 6) {
+                    ForEach(0..<5) { row in
+                        HStack(spacing: 6) {
+                            ForEach(0..<10) { col in
+                                let index = row * 10 + col
+                                if index < dayTiles.count {
+                                    DayTileView(
+                                        dayTile: dayTiles[index],
+                                        habitColor: habitColor,
+                                        onTap: { 
+                                            selectedTileDate = dayTiles[index].date
+                                            updateStatus(for: dayTiles[index].date)
+                                        }
+                                    )
+                                } else {
+                                    // Empty space for incomplete rows
+                                    Rectangle()
+                                        .fill(Color.clear)
+                                        .frame(width: 28, height: 28)
+                                }
                             }
-                        )
+                        }
                     }
                 }
             }
@@ -963,12 +986,12 @@ struct HabitGridView: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 16)
                 .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         )
         .sheet(isPresented: $showingNotes) {
-            NotesView(habit: habit, habitManager: habitManager)
+            NotesView(habit: habit)
         }
     }
     
@@ -996,6 +1019,7 @@ struct HabitGridView: View {
                 Circle()
                     .fill(todayStatus == .completed ? .primaryGreen : habitColor.opacity(0.1))
                     .frame(width: 36, height: 36)
+                    .shadow(color: todayStatus == .completed ? .primaryGreen.opacity(0.3) : .clear, radius: 6, x: 0, y: 3)
                 
                 Image(systemName: todayStatus == .completed ? "checkmark" : "circle")
                     .font(.title3)
@@ -1099,20 +1123,19 @@ struct DayTileView: View {
         Button(action: onTap) {
             ZStack {
                 // Background
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 3)
                     .fill(tileBackgroundColor)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
                 
                 // Content
-                VStack(spacing: 2) {
+                VStack(spacing: 1) {
                     Text("\(dayTile.dayNumber)")
-                        .font(.caption2)
-                        .fontWeight(.medium)
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(tileTextColor)
                     
                     if let status = dayTile.status {
                         Image(systemName: status.icon)
-                            .font(.caption2)
+                            .font(.system(size: 8))
                             .foregroundColor(tileTextColor)
                     }
                 }
@@ -1125,35 +1148,35 @@ struct DayTileView: View {
     
     private var tileBackgroundColor: Color {
         if dayTile.isToday {
-            return habitColor.opacity(0.3)
+            return habitColor.opacity(0.4)
         }
         
         switch dayTile.status {
         case .completed:
             return habitColor
         case .failed:
-            return habitColor.opacity(0.3)
+            return habitColor.opacity(0.4)
         case .skipped:
-            return habitColor.opacity(0.1)
+            return habitColor.opacity(0.2)
         case .none:
-            return Color.gray.opacity(0.1)
+            return Color.gray.opacity(0.15)
         }
     }
     
     private var tileTextColor: Color {
         if dayTile.isToday {
-            return habitColor
+            return .white
         }
         
         switch dayTile.status {
         case .completed:
             return .white
         case .failed:
-            return habitColor
+            return .white
         case .skipped:
-            return habitColor.opacity(0.6)
+            return habitColor.opacity(0.8)
         case .none:
-            return .gray
+            return Color.textSecondary
         }
     }
 }

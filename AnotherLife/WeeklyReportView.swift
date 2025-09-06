@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct WeeklyReportView: View {
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @Environment(\.dismiss) private var dismiss
     @State private var selectedWeek: Date = Date()
     
@@ -724,5 +724,6 @@ enum InsightType {
 }
 
 #Preview {
-    WeeklyReportView(habitManager: HabitManager())
+    WeeklyReportView()
+        .environmentObject(HabitManager())
 }

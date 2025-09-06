@@ -9,7 +9,7 @@ import SwiftUI
 
 struct NotesView: View {
     let habit: Habit
-    @ObservedObject var habitManager: HabitManager
+    @EnvironmentObject var habitManager: HabitManager
     @Environment(\.dismiss) private var dismiss
     
     @State private var notes = ""
@@ -172,5 +172,6 @@ struct NotesView: View {
 }
 
 #Preview {
-    NotesView(habit: Habit(title: "Exercise", description: "30 minutes of cardio"), habitManager: HabitManager())
+    NotesView(habit: Habit(title: "Exercise", description: "30 minutes of cardio"))
+        .environmentObject(HabitManager())
 }

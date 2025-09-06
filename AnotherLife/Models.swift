@@ -17,11 +17,11 @@ enum HabitStatus: String, CaseIterable, Codable {
     var color: Color {
         switch self {
         case .completed:
-            return .green
+            return .primaryGreen
         case .failed:
-            return .red
+            return .primaryRed
         case .skipped:
-            return .blue
+            return .primaryBlue
         }
     }
     
@@ -134,15 +134,54 @@ enum AppTheme: String, CaseIterable, Codable {
 
 // MARK: - Color Extensions
 extension Color {
+    // MARK: - Primary Colors
     static let primaryBlue = Color(red: 0.2, green: 0.4, blue: 0.9)
     static let primaryGreen = Color(red: 0.2, green: 0.7, blue: 0.3)
     static let primaryRed = Color(red: 0.9, green: 0.3, blue: 0.3)
-    static let backgroundGray = Color(red: 0.95, green: 0.95, blue: 0.97)
-    static let cardBackground = Color.white
-    static let textPrimary = Color.primary
-    static let textSecondary = Color.secondary
     
-    // Additional colors for habits
+    // MARK: - Light Theme Colors
+    static let lightBackground = Color(red: 0.95, green: 0.95, blue: 0.97)
+    static let lightCardBackground = Color.white
+    static let lightTextPrimary = Color.primary
+    static let lightTextSecondary = Color.secondary
+    
+    // MARK: - Dark Theme Colors
+    static let darkBackground = Color(red: 0.05, green: 0.05, blue: 0.08)
+    static let darkCardBackground = Color(red: 0.12, green: 0.12, blue: 0.16)
+    static let darkTextPrimary = Color.white
+    static let darkTextSecondary = Color(red: 0.7, green: 0.7, blue: 0.7)
+    static let darkAccent = Color(red: 0.3, green: 0.3, blue: 0.35)
+    
+    // MARK: - Dynamic Colors (Theme-aware)
+    static var backgroundGray: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? 
+            UIColor(darkBackground) : UIColor(lightBackground)
+        })
+    }
+    
+    static var cardBackground: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? 
+            UIColor(darkCardBackground) : UIColor(lightCardBackground)
+        })
+    }
+    
+    static var textPrimary: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? 
+            UIColor(darkTextPrimary) : UIColor(lightTextPrimary)
+        })
+    }
+    
+    static var textSecondary: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? 
+            UIColor(darkTextSecondary) : UIColor(lightTextSecondary)
+        })
+    }
+    
+    // MARK: - Additional colors for habits (Dark theme optimized)
     static let mint = Color(red: 0.0, green: 0.8, blue: 0.6)
     static let yellow = Color(red: 1.0, green: 0.8, blue: 0.0)
     static let brown = Color(red: 0.6, green: 0.4, blue: 0.2)
@@ -151,4 +190,14 @@ extension Color {
     static let magenta = Color(red: 1.0, green: 0.0, blue: 1.0)
     static let lime = Color(red: 0.5, green: 1.0, blue: 0.0)
     static let navy = Color(red: 0.0, green: 0.0, blue: 0.5)
+    
+    // MARK: - Dark Theme Specific Colors
+    static let darkBlue = Color(red: 0.3, green: 0.5, blue: 1.0)
+    static let darkGreen = Color(red: 0.3, green: 0.8, blue: 0.4)
+    static let darkRed = Color(red: 1.0, green: 0.4, blue: 0.4)
+    static let darkOrange = Color(red: 1.0, green: 0.6, blue: 0.2)
+    static let darkPurple = Color(red: 0.7, green: 0.4, blue: 1.0)
+    static let darkPink = Color(red: 1.0, green: 0.4, blue: 0.8)
+    static let darkTeal = Color(red: 0.2, green: 0.8, blue: 0.8)
+    static let darkIndigo = Color(red: 0.4, green: 0.4, blue: 1.0)
 }

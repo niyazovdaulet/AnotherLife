@@ -1,14 +1,8 @@
-//
-//  InsightsView.swift
-//  AnotherLife
-//
-//  Created by Daulet on 04/09/2025.
-//
 
 import SwiftUI
 import Charts
 
-struct InsightsView: View {
+struct AnalyticsView: View {
     @EnvironmentObject var habitManager: HabitManager
     @State private var selectedTimeRange: TimeRange = .month
     @State private var selectedHabit: Habit?
@@ -46,8 +40,17 @@ struct InsightsView: View {
                     // Time Range Selector
                     timeRangeSelector
                     
-                    // Streak Overview
-                    streakOverviewView
+                    // Overview Cards
+                    overviewCardsView
+                    
+                    // Overall Progress
+                    overallProgressView
+                    
+                    // Habits Performance
+                    habitsPerformanceView
+                    
+                    // Completion Rate Over Time
+                    completionRateChart
                     
                     // Habit Streak Graphs
                     habitStreakGraphsView
@@ -61,7 +64,7 @@ struct InsightsView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 10)
             }
-            .navigationTitle("Insights")
+            .navigationTitle("Analytics")
             .navigationBarTitleDisplayMode(.large)
         }
         .sheet(isPresented: $showingWeeklyReport) {
@@ -102,10 +105,10 @@ struct InsightsView: View {
         )
     }
     
-    // MARK: - Streak Overview
-    private var streakOverviewView: some View {
+    // MARK: - Overview Cards
+    private var overviewCardsView: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Streak Overview")
+            Text("Overview")
                 .font(.headline)
                 .foregroundColor(.textPrimary)
             
@@ -129,19 +132,19 @@ struct InsightsView: View {
             
             HStack(spacing: 16) {
                 StreakCardView(
-                    title: "Total Streaks",
-                    value: "\(totalStreaks)",
-                    subtitle: "completed",
-                    icon: "star.fill",
-                    color: .primaryGreen
-                )
-                
-                StreakCardView(
                     title: "Success Rate",
                     value: "\(Int(overallSuccessRate))",
                     subtitle: "%",
                     icon: "chart.line.uptrend.xyaxis",
                     color: .purple
+                )
+                
+                StreakCardView(
+                    title: "Total Habits",
+                    value: "\(habitManager.habits.count)",
+                    subtitle: "active",
+                    icon: "star.fill",
+                    color: .primaryGreen
                 )
             }
         }
@@ -150,6 +153,131 @@ struct InsightsView: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color.cardBackground)
                 .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+        )
+    }
+    
+    // MARK: - Overall Progress View
+    private var overallProgressView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Overall Progress")
+                .font(.headline)
+                .foregroundColor(.textPrimary)
+            
+            HStack(spacing: 20) {
+                // Completion Rate
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Completion Rate")
+                        .font(.subheadline)
+                        .foregroundColor(.textSecondary)
+                    
+                    Text("\(overallCompletionRate, specifier: "%.1f")%")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primaryBlue)
+                }
+                
+                Spacer()
+                
+                // Total Completed
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text("Total Completed")
+                        .font(.subheadline)
+                        .foregroundColor(.textSecondary)
+                    
+                    Text("\(totalCompletedEntries)")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primaryGreen)
+                }
+            }
+            
+            // Progress Bar
+            ProgressView(value: overallCompletionRate / 100)
+                .progressViewStyle(LinearProgressViewStyle(tint: .primaryBlue))
+                .scaleEffect(x: 1, y: 2, anchor: .center)
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Habits Performance View
+    private var habitsPerformanceView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Habits Performance")
+                .font(.headline)
+                .foregroundColor(.textPrimary)
+            
+            if habitManager.habits.isEmpty {
+                emptyHabitsView
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(habitManager.habits) { habit in
+                        HabitPerformanceRow(habit: habit, timeRange: selectedTimeRange)
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Completion Rate Chart
+    private var completionRateChart: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Completion Rate Over Time")
+                .font(.headline)
+                .foregroundColor(.textPrimary)
+            
+            if #available(iOS 16.0, *) {
+                Chart(completionData) { data in
+                    LineMark(
+                        x: .value("Date", data.date),
+                        y: .value("Rate", data.rate)
+                    )
+                    .foregroundStyle(Color.primaryBlue)
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                    
+                    AreaMark(
+                        x: .value("Date", data.date),
+                        y: .value("Rate", data.rate)
+                    )
+                    .foregroundStyle(Color.primaryBlue.opacity(0.1))
+                }
+                .frame(height: 200)
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisValueLabel {
+                            if let rate = value.as(Double.self) {
+                                Text("\(Int(rate))%")
+                            }
+                        }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day, count: max(1, selectedTimeRange.days / 7))) { value in
+                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                    }
+                }
+            } else {
+                // Fallback for iOS < 16
+                Text("Charts require iOS 16+")
+                    .foregroundColor(.textSecondary)
+                    .frame(height: 200)
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
         )
     }
     
@@ -163,9 +291,9 @@ struct InsightsView: View {
             if habitManager.habits.isEmpty {
                 emptyHabitsView
             } else {
-                LazyVStack(spacing: 16) {
+                LazyVStack(spacing: 20) {
                     ForEach(habitManager.habits) { habit in
-                        HabitStreakGraphView(habit: habit, timeRange: selectedTimeRange)
+                        ImprovedHabitStreakView(habit: habit, timeRange: selectedTimeRange)
                     }
                 }
             }
@@ -267,6 +395,35 @@ struct InsightsView: View {
     }
     
     // MARK: - Computed Properties
+    private var overallCompletionRate: Double {
+        guard !habitManager.habits.isEmpty else { return 0 }
+        
+        let dateRange = DateInterval(
+            start: Calendar.current.date(byAdding: .day, value: -selectedTimeRange.days, to: Date()) ?? Date(),
+            end: Date()
+        )
+        
+        let totalPossibleEntries = habitManager.habits.count * selectedTimeRange.days
+        let completedEntries = habitManager.habits.reduce(0) { total, habit in
+            let entries = habitManager.getEntries(for: habit, in: dateRange)
+            return total + entries.filter { $0.status == .completed }.count
+        }
+        
+        return totalPossibleEntries > 0 ? Double(completedEntries) / Double(totalPossibleEntries) * 100 : 0
+    }
+    
+    private var totalCompletedEntries: Int {
+        let dateRange = DateInterval(
+            start: Calendar.current.date(byAdding: .day, value: -selectedTimeRange.days, to: Date()) ?? Date(),
+            end: Date()
+        )
+        
+        return habitManager.habits.reduce(0) { total, habit in
+            let entries = habitManager.getEntries(for: habit, in: dateRange)
+            return total + entries.filter { $0.status == .completed }.count
+        }
+    }
+    
     private var longestStreakEver: Int {
         habitManager.habits.compactMap { habit in
             habitManager.getStatistics(for: habit, in: DateInterval(start: Date().addingTimeInterval(-365*24*60*60), end: Date())).longestStreak
@@ -277,13 +434,6 @@ struct InsightsView: View {
         habitManager.habits.compactMap { habit in
             habitManager.getStatistics(for: habit, in: DateInterval(start: Date().addingTimeInterval(-365*24*60*60), end: Date())).currentStreak
         }.max() ?? 0
-    }
-    
-    private var totalStreaks: Int {
-        habitManager.habits.reduce(0) { total, habit in
-            let stats = habitManager.getStatistics(for: habit, in: DateInterval(start: Date().addingTimeInterval(-365*24*60*60), end: Date()))
-            return total + stats.completedDays
-        }
     }
     
     private var overallSuccessRate: Double {
@@ -301,6 +451,31 @@ struct InsightsView: View {
         }
         
         return totalPossibleEntries > 0 ? Double(completedEntries) / Double(totalPossibleEntries) * 100 : 0
+    }
+    
+    private var completionData: [CompletionData] {
+        let calendar = Calendar.current
+        let endDate = Date()
+        
+        var data: [CompletionData] = []
+        
+        for i in 0..<selectedTimeRange.days {
+            if let date = calendar.date(byAdding: .day, value: -i, to: endDate) {
+                let totalHabits = habitManager.habits.count
+                let completedHabits = habitManager.habits.filter { habit in
+                    if let entry = habitManager.getEntry(for: habit, on: date) {
+                        return entry.status == .completed
+                    }
+                    return false
+                }.count
+                
+                let rate = totalHabits > 0 ? Double(completedHabits) / Double(totalHabits) * 100 : 0
+                
+                data.append(CompletionData(date: date, rate: rate))
+            }
+        }
+        
+        return data.sorted { $0.date < $1.date }
     }
     
     private var correlationInsights: [CorrelationInsight] {
@@ -422,11 +597,84 @@ struct StreakCardView: View {
     }
 }
 
+// MARK: - Habit Performance Row
+struct HabitPerformanceRow: View {
+    let habit: Habit
+    @EnvironmentObject var habitManager: HabitManager
+    let timeRange: AnalyticsView.TimeRange
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Habit Icon
+            ZStack {
+                Circle()
+                    .fill(Color(hex: habit.color)?.opacity(0.2) ?? Color.primaryBlue.opacity(0.2))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: habit.icon)
+                    .font(.title3)
+                    .foregroundColor(Color(hex: habit.color) ?? .primaryBlue)
+            }
+            
+            // Habit Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(habit.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.textPrimary)
+                
+                Text("\(completionRate, specifier: "%.0f")% completion")
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+            }
+            
+            Spacer()
+            
+            // Stats
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("\(currentStreak)")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.orange)
+                
+                Text("day streak")
+                    .font(.caption2)
+                    .foregroundColor(.textSecondary)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.backgroundGray)
+        )
+    }
+    
+    private var completionRate: Double {
+        let dateRange = DateInterval(
+            start: Calendar.current.date(byAdding: .day, value: -timeRange.days, to: Date()) ?? Date(),
+            end: Date()
+        )
+        
+        let stats = habitManager.getStatistics(for: habit, in: dateRange)
+        return stats.completionRate
+    }
+    
+    private var currentStreak: Int {
+        let dateRange = DateInterval(
+            start: Calendar.current.date(byAdding: .day, value: -timeRange.days, to: Date()) ?? Date(),
+            end: Date()
+        )
+        
+        let stats = habitManager.getStatistics(for: habit, in: dateRange)
+        return stats.currentStreak
+    }
+}
+
 // MARK: - Habit Streak Graph View
 struct HabitStreakGraphView: View {
     let habit: Habit
     @EnvironmentObject var habitManager: HabitManager
-    let timeRange: InsightsView.TimeRange
+    let timeRange: AnalyticsView.TimeRange
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -455,16 +703,28 @@ struct HabitStreakGraphView: View {
             }
             
             if #available(iOS 16.0, *) {
-                Chart(streakData) { data in
-                    BarMark(
-                        x: .value("Date", data.date),
-                        y: .value("Status", data.status)
-                    )
-                    .foregroundStyle(data.status == 1 ? Color(hex: habit.color) ?? .primaryBlue : Color.gray.opacity(0.3))
+                if streakData.count >= 2 {
+                    Chart(streakData) { data in
+                        BarMark(
+                            x: .value("Date", data.date),
+                            y: .value("Status", data.status)
+                        )
+                        .foregroundStyle(data.status == 1 ? Color(hex: habit.color) ?? .primaryBlue : Color.gray.opacity(0.3))
+                    }
+                    .frame(height: 60)
+                    .chartYAxis(.hidden)
+                    .chartXAxis(.hidden)
+                } else {
+                    // Fallback for insufficient data
+                    HStack(spacing: 2) {
+                        ForEach(streakData, id: \.date) { data in
+                            Rectangle()
+                                .fill(data.status == 1 ? (Color(hex: habit.color) ?? .primaryBlue) : Color.gray.opacity(0.3))
+                                .frame(width: 4, height: 20)
+                        }
+                    }
+                    .frame(height: 60)
                 }
-                .frame(height: 60)
-                .chartYAxis(.hidden)
-                .chartXAxis(.hidden)
             } else {
                 // Fallback for iOS < 16
                 HStack(spacing: 2) {
@@ -508,6 +768,16 @@ struct HabitStreakGraphView: View {
             
             data.append(StreakData(date: currentDate, status: status))
             currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+        }
+        
+        // Ensure we always have at least 2 data points to prevent chart crashes
+        if data.count < 2 {
+            let today = Date()
+            let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+            data = [
+                StreakData(date: yesterday, status: 0),
+                StreakData(date: today, status: 0)
+            ]
         }
         
         return data
@@ -559,6 +829,12 @@ struct StreakData: Identifiable {
     let status: Int // 1 = completed, 0 = not completed
 }
 
+struct CompletionData: Identifiable {
+    let id = UUID()
+    let date: Date
+    let rate: Double
+}
+
 struct CorrelationInsight: Identifiable {
     let id = UUID()
     let habit1: Habit
@@ -595,7 +871,190 @@ struct CorrelationInsight: Identifiable {
     }
 }
 
+// MARK: - Improved Habit Streak View
+struct ImprovedHabitStreakView: View {
+    let habit: Habit
+    @EnvironmentObject var habitManager: HabitManager
+    let timeRange: AnalyticsView.TimeRange
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header with habit info
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: habit.color)?.opacity(0.15) ?? Color.primaryBlue.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: habit.icon)
+                        .font(.title3)
+                        .foregroundColor(Color(hex: habit.color) ?? .primaryBlue)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(habit.title)
+                        .font(.headline)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("Current streak: \(currentStreak) days")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(completionRate, specifier: "%.0f")%")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primaryBlue)
+                    
+                    Text("completion")
+                        .font(.caption2)
+                        .foregroundColor(.textSecondary)
+                }
+            }
+            
+            // Improved visual representation
+            VStack(spacing: 8) {
+                // Date labels
+                HStack {
+                    Text("Start")
+                        .font(.caption2)
+                        .foregroundColor(.textSecondary)
+                    
+                    Spacer()
+                    
+                    Text("Today")
+                        .font(.caption2)
+                        .foregroundColor(.textSecondary)
+                }
+                
+                // Visual streak representation
+                if #available(iOS 16.0, *) {
+                    Chart(streakData) { data in
+                        BarMark(
+                            x: .value("Date", data.date),
+                            y: .value("Status", data.status)
+                        )
+                        .foregroundStyle(data.status == 1 ? (Color(hex: habit.color) ?? .primaryBlue) : Color.gray.opacity(0.3))
+                    }
+                    .frame(height: 40)
+                    .chartYAxis(.hidden)
+                    .chartXAxis(.hidden)
+                } else {
+                    // Fallback for iOS < 16
+                    HStack(spacing: 2) {
+                        ForEach(streakData, id: \.date) { data in
+                            VStack(spacing: 2) {
+                                Rectangle()
+                                    .fill(data.status == 1 ? (Color(hex: habit.color) ?? .primaryBlue) : Color.gray.opacity(0.3))
+                                    .frame(width: 6, height: 20)
+                                
+                                Text(dayLabel(for: data.date))
+                                    .font(.caption2)
+                                    .foregroundColor(.textSecondary)
+                            }
+                        }
+                    }
+                    .frame(height: 40)
+                }
+                
+                // Legend
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color(hex: habit.color) ?? .primaryBlue)
+                            .frame(width: 8, height: 8)
+                        Text("Completed")
+                            .font(.caption2)
+                            .foregroundColor(.textSecondary)
+                    }
+                    
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                        Text("Missed")
+                            .font(.caption2)
+                            .foregroundColor(.textSecondary)
+                    }
+                    
+                    Spacer()
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.backgroundGray)
+        )
+    }
+    
+    private var currentStreak: Int {
+        let dateRange = DateInterval(
+            start: Calendar.current.date(byAdding: .day, value: -timeRange.days, to: Date()) ?? Date(),
+            end: Date()
+        )
+        
+        let stats = habitManager.getStatistics(for: habit, in: dateRange)
+        return stats.currentStreak
+    }
+    
+    private var completionRate: Double {
+        let dateRange = DateInterval(
+            start: Calendar.current.date(byAdding: .day, value: -timeRange.days, to: Date()) ?? Date(),
+            end: Date()
+        )
+        
+        let stats = habitManager.getStatistics(for: habit, in: dateRange)
+        return stats.completionRate
+    }
+    
+    private var streakData: [StreakData] {
+        let calendar = Calendar.current
+        let endDate = Date()
+        let startDate = calendar.date(byAdding: .day, value: -timeRange.days, to: endDate) ?? endDate
+        
+        var data: [StreakData] = []
+        var currentDate = startDate
+        
+        while currentDate <= endDate {
+            let entry = habitManager.getEntry(for: habit, on: currentDate)
+            let status = entry?.status == .completed ? 1 : 0
+            
+            data.append(StreakData(date: currentDate, status: status))
+            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+        }
+        
+        // Ensure we always have at least 2 data points to prevent chart crashes
+        if data.count < 2 {
+            let today = Date()
+            let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+            data = [
+                StreakData(date: yesterday, status: 0),
+                StreakData(date: today, status: 0)
+            ]
+        }
+        
+        return data
+    }
+    
+    private func dayLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "T"
+        } else if calendar.isDateInYesterday(date) {
+            return "Y"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "d"
+            return formatter.string(from: date)
+        }
+    }
+}
+
 #Preview {
-    InsightsView()
+    AnalyticsView()
         .environmentObject(HabitManager())
 }

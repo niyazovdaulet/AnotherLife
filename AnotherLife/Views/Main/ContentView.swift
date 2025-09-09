@@ -1,9 +1,4 @@
-//
-//  ContentView.swift
-//  AnotherLife
-//
-//  Created by Daulet on 04/09/2025.
-//
+
 
 import SwiftUI
 
@@ -21,21 +16,13 @@ struct ContentView: View {
                 }
                 .tag(0)
             
-            // Statistics Tab
-            StatisticsView()
+            // Analytics Tab
+            AnalyticsView()
                 .tabItem {
                     Image(systemName: "chart.bar.fill")
-                    Text("Stats")
+                    Text("Analytics")
                 }
                 .tag(1)
-            
-            // Insights Tab
-            InsightsView()
-                .tabItem {
-                    Image(systemName: "lightbulb.fill")
-                    Text("Insights")
-                }
-                .tag(2)
         }
         .preferredColorScheme(habitManager.theme == .light ? .light : habitManager.theme == .dark ? .dark : nil)
     }

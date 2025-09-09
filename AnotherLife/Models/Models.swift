@@ -1,10 +1,3 @@
-//
-//  Models.swift
-//  AnotherLife
-//
-//  Created by Daulet on 04/09/2025.
-//
-
 import Foundation
 import SwiftUI
 

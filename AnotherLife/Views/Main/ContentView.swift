@@ -36,6 +36,14 @@ struct ContentView: View {
                             Text("Challenges")
                         }
                         .tag(2)
+                    
+                    // Profile Tab
+                    ProfileView()
+                        .tabItem {
+                            Image(systemName: "person.fill")
+                            Text("Profile")
+                        }
+                        .tag(3)
                 }
                 .preferredColorScheme(habitManager.theme == .light ? .light : habitManager.theme == .dark ? .dark : nil)
                 .environmentObject(authManager)

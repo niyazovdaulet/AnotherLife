@@ -22,6 +22,13 @@ struct SettingsView: View {
                     Text("Statistics")
                 }
                 
+                // Habit Management Section
+                Section {
+                    habitManagementSection
+                } header: {
+                    Text("Habits")
+                }
+                
                 // Data Section
                 Section {
                     dataSection
@@ -101,28 +108,30 @@ struct SettingsView: View {
                 icon: "calendar",
                 color: .orange
             )
-            
-            // Habit Management Button
-            NavigationLink(destination: HabitManagementView()) {
-                HStack {
-                    Image(systemName: "list.bullet.rectangle")
-                        .foregroundColor(.primaryBlue)
-                        .frame(width: 24)
-                    
-                    Text("Manage Habits")
-                        .font(.body)
-                        .foregroundColor(.textPrimary)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
-                }
-                .padding(.vertical, 4)
-            }
         }
         .padding(.vertical, 8)
+    }
+    
+    // MARK: - Habit Management Section
+    private var habitManagementSection: some View {
+        NavigationLink(destination: HabitManagementView()) {
+            HStack {
+                Image(systemName: "list.bullet.rectangle")
+                    .foregroundColor(.primaryBlue)
+                    .frame(width: 24)
+                
+                Text("Manage Habits")
+                    .font(.body)
+                    .foregroundColor(.textPrimary)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+            }
+            .padding(.vertical, 4)
+        }
     }
     
     // MARK: - Data Section

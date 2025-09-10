@@ -12,6 +12,8 @@ struct AddHabitView: View {
     @State private var selectedColor = "blue"
     @State private var selectedIcon = "star.fill"
     @State private var customDays: [Int] = []
+    @State private var selectedTemplate: HabitTemplate?
+    @State private var isCreatingCustom = false
     
     private let availableColors = [
         "blue", "green", "red", "orange", "purple", "pink", "teal", "indigo",
@@ -53,34 +55,14 @@ struct AddHabitView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header
-                    headerView
-                    
-                    // Form
-                    VStack(spacing: 20) {
-                        // Basic Info
-                        basicInfoSection
-                        
-                        // Frequency Selection
-                        frequencySection
-                        
-                        // Custom Days (if weekly)
-                        if frequency == .custom {
-                            customDaysSection
-                        }
-                        
-                        // Habit Type
-                        habitTypeSection
-                        
-                        // Customization
-                        customizationSection
-                    }
-                    .padding(.horizontal, 20)
+            Group {
+                if !isCreatingCustom && selectedTemplate == nil {
+                    templateSelectionView
+                } else {
+                    customHabitFormView
                 }
             }
-            .navigationTitle("New Habit")
+            .navigationTitle(isCreatingCustom ? "Custom Habit" : "New Habit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -89,12 +71,107 @@ struct AddHabitView: View {
                     }
                 }
                 
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        saveHabit()
+                if isCreatingCustom || selectedTemplate != nil {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            saveHabit()
+                        }
+                        .disabled(title.isEmpty)
                     }
-                    .disabled(title.isEmpty)
                 }
+            }
+        }
+    }
+    
+    // MARK: - Template Selection View
+    private var templateSelectionView: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 12) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 60))
+                        .foregroundColor(.primaryBlue)
+                    
+                    Text("Choose a Habit Template")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("Start with a proven template or create your own")
+                        .font(.body)
+                        .foregroundColor(.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 20)
+                
+                // Create Custom Button
+                Button(action: { isCreatingCustom = true }) {
+                    HStack {
+                        Image(systemName: "wand.and.stars")
+                            .font(.title3)
+                        
+                        Text("Create Custom Habit")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.primaryBlue)
+                    )
+                }
+                .padding(.horizontal, 20)
+                
+                // Templates Grid
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 12),
+                    GridItem(.flexible(), spacing: 12)
+                ], spacing: 16) {
+                    ForEach(StarterHabits.templates.prefix(8), id: \.id) { template in
+                        TemplateCardView(
+                            template: template,
+                            isSelected: selectedTemplate?.id == template.id
+                        ) {
+                            selectTemplate(template)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+        }
+    }
+    
+    // MARK: - Custom Habit Form View
+    private var customHabitFormView: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                headerView
+                
+                // Form
+                VStack(spacing: 20) {
+                    // Basic Info
+                    basicInfoSection
+                    
+                    // Frequency Selection
+                    frequencySection
+                    
+                    // Custom Days (if weekly)
+                    if frequency == .custom {
+                        customDaysSection
+                    }
+                    
+                    // Habit Type
+                    habitTypeSection
+                    
+                    // Customization
+                    customizationSection
+                }
+                .padding(.horizontal, 20)
             }
         }
     }
@@ -383,6 +460,16 @@ struct AddHabitView: View {
     }
     
     // MARK: - Helper Methods
+    private func selectTemplate(_ template: HabitTemplate) {
+        selectedTemplate = template
+        title = template.title
+        description = template.description
+        frequency = template.suggestedFrequency
+        isPositive = template.isPositive
+        selectedColor = template.colorHex
+        selectedIcon = template.icon
+    }
+    
     private func frequencyDescription(_ frequency: HabitFrequency) -> String {
         switch frequency {
         case .daily:
@@ -420,6 +507,76 @@ struct AddHabitView: View {
         
         habitManager.addHabit(habit)
         dismiss()
+    }
+}
+
+// MARK: - Template Card View
+struct TemplateCardView: View {
+    let template: HabitTemplate
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 12) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(templateColor.opacity(0.15))
+                        .frame(width: 50, height: 50)
+                    
+                    Image(systemName: template.icon)
+                        .font(.title2)
+                        .foregroundColor(templateColor)
+                }
+                
+                // Title
+                Text(template.title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(height: 44) // Fixed height for title
+                
+                // Description
+                Text(template.description)
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(height: 32) // Fixed height for description
+                
+                // Frequency Badge
+                Text(template.suggestedFrequency.displayName)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(templateColor.opacity(0.2))
+                    )
+                    .foregroundColor(templateColor)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .frame(height: 160) // Fixed height instead of minHeight
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(isSelected ? templateColor.opacity(0.1) : Color.cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(isSelected ? templateColor : Color.clear, lineWidth: 2)
+                    )
+                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var templateColor: Color {
+        Color(hex: template.colorHex) ?? .primaryBlue
     }
 }
 

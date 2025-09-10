@@ -12,8 +12,10 @@ struct AddHabitView: View {
     @State private var selectedColor = "blue"
     @State private var selectedIcon = "star.fill"
     @State private var customDays: [Int] = []
-    @State private var selectedTemplate: HabitTemplate?
+    @State private var selectedTemplates = Set<HabitTemplate>()
     @State private var isCreatingCustom = false
+    @State private var showingHabitForm = false
+    @State private var selectedTemplate: HabitTemplate?
     
     private let availableColors = [
         "blue", "green", "red", "orange", "purple", "pink", "teal", "indigo",
@@ -56,25 +58,32 @@ struct AddHabitView: View {
     var body: some View {
         NavigationView {
             Group {
-                if !isCreatingCustom && selectedTemplate == nil {
+                if !isCreatingCustom && selectedTemplates.isEmpty && !showingHabitForm {
                     templateSelectionView
                 } else {
                     customHabitFormView
                 }
             }
-            .navigationTitle(isCreatingCustom ? "Custom Habit" : "New Habit")
+            .navigationTitle(isCreatingCustom ? "Custom Habit" : (showingHabitForm ? "Create Habit" : "New Habit"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
+                    if showingHabitForm && !isCreatingCustom {
+                        Button("Back") {
+                            showingHabitForm = false
+                            selectedTemplate = nil
+                        }
+                    } else {
+                        Button("Cancel") {
+                            dismiss()
+                        }
                     }
                 }
                 
-                if isCreatingCustom || selectedTemplate != nil {
+                if isCreatingCustom || !selectedTemplates.isEmpty || showingHabitForm {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Save") {
-                            saveHabit()
+                            saveHabits()
                         }
                         .disabled(title.isEmpty)
                     }
@@ -125,6 +134,28 @@ struct AddHabitView: View {
                 }
                 .padding(.horizontal, 20)
                 
+                // Selected Templates Count
+                if !selectedTemplates.isEmpty {
+                    HStack {
+                        Text("\(selectedTemplates.count) template\(selectedTemplates.count == 1 ? "" : "s") selected")
+                            .font(.subheadline)
+                            .foregroundColor(.textSecondary)
+                        
+                        Spacer()
+                        
+                        Button("Continue") {
+                            // Move to form view with first selected template
+                            if let firstTemplate = selectedTemplates.first {
+                                selectTemplate(firstTemplate)
+                            }
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primaryBlue)
+                    }
+                    .padding(.horizontal, 20)
+                }
+                
                 // Templates Grid
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: 12),
@@ -133,9 +164,9 @@ struct AddHabitView: View {
                     ForEach(StarterHabits.templates.prefix(8), id: \.id) { template in
                         TemplateCardView(
                             template: template,
-                            isSelected: selectedTemplate?.id == template.id
+                            isSelected: selectedTemplates.contains(template)
                         ) {
-                            selectTemplate(template)
+                            toggleTemplateSelection(template)
                         }
                     }
                 }
@@ -460,8 +491,14 @@ struct AddHabitView: View {
     }
     
     // MARK: - Helper Methods
-    private func selectTemplate(_ template: HabitTemplate) {
+    private func toggleTemplateSelection(_ template: HabitTemplate) {
+        // Open the habit form with the selected template data
         selectedTemplate = template
+        selectTemplate(template)
+        showingHabitForm = true
+    }
+    
+    private func selectTemplate(_ template: HabitTemplate) {
         title = template.title
         description = template.description
         frequency = template.suggestedFrequency
@@ -494,18 +531,46 @@ struct AddHabitView: View {
         }
     }
     
-    private func saveHabit() {
-        let habit = Habit(
-            title: title,
-            description: description,
-            frequency: frequency,
-            customDays: customDays,
-            isPositive: isPositive,
-            color: selectedColor,
-            icon: selectedIcon
-        )
-        
-        habitManager.addHabit(habit)
+    private func saveHabits() {
+        if isCreatingCustom {
+            // Save custom habit
+            let habit = Habit(
+                title: title,
+                description: description,
+                frequency: frequency,
+                customDays: customDays,
+                isPositive: isPositive,
+                color: selectedColor,
+                icon: selectedIcon
+            )
+            habitManager.addHabit(habit)
+        } else if showingHabitForm && selectedTemplate != nil {
+            // Save single template-based habit (from form)
+            let habit = Habit(
+                title: title,
+                description: description,
+                frequency: frequency,
+                customDays: customDays,
+                isPositive: isPositive,
+                color: selectedColor,
+                icon: selectedIcon
+            )
+            habitManager.addHabit(habit)
+        } else {
+            // Save selected templates as habits (batch mode)
+            for template in selectedTemplates {
+                let habit = Habit(
+                    title: template.title,
+                    description: template.description,
+                    frequency: template.suggestedFrequency,
+                    customDays: [],
+                    isPositive: template.isPositive,
+                    color: template.colorHex,
+                    icon: template.icon
+                )
+                habitManager.addHabit(habit)
+            }
+        }
         dismiss()
     }
 }
@@ -517,7 +582,8 @@ struct TemplateCardView: View {
     let onTap: () -> Void
     
     var body: some View {
-        Button(action: onTap) {
+        ZStack(alignment: .topTrailing) {
+            // Main Card Content
             VStack(spacing: 12) {
                 // Icon
                 ZStack {
@@ -537,7 +603,7 @@ struct TemplateCardView: View {
                     .foregroundColor(.textPrimary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .frame(height: 44) // Fixed height for title
+                    .frame(height: 44)
                 
                 // Description
                 Text(template.description)
@@ -545,7 +611,7 @@ struct TemplateCardView: View {
                     .foregroundColor(.textSecondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .frame(height: 32) // Fixed height for description
+                    .frame(height: 32)
                 
                 // Frequency Badge
                 Text(template.suggestedFrequency.displayName)
@@ -561,7 +627,7 @@ struct TemplateCardView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity)
-            .frame(height: 160) // Fixed height instead of minHeight
+            .frame(height: 160)
             .background(
                 RoundedRectangle(cornerRadius: 16)
                     .fill(isSelected ? templateColor.opacity(0.1) : Color.cardBackground)
@@ -571,8 +637,22 @@ struct TemplateCardView: View {
                     )
                     .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
             )
+            
+            // Selection Button - Top Right Corner
+            Button(action: onTap) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "plus.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(isSelected ? .primaryGreen : .textSecondary)
+                    .background(
+                        Circle()
+                            .fill(Color.cardBackground)
+                            .frame(width: 32, height: 32)
+                            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                    )
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding(8)
         }
-        .buttonStyle(PlainButtonStyle())
     }
     
     private var templateColor: Color {

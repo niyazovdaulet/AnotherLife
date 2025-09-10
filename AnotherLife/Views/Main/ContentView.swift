@@ -4,27 +4,48 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var habitManager: HabitManager
+    @StateObject private var authManager = AuthManager()
+    @StateObject private var challengeManager = ChallengeManager()
     @State private var selectedTab = 0
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // Main Habit Tracking Tab
-            MainHabitView()
-                .tabItem {
-                    Image(systemName: "house.fill")
-                    Text("Habits")
+        Group {
+            if authManager.isAuthenticated {
+                // Main App
+                TabView(selection: $selectedTab) {
+                    // Main Habit Tracking Tab
+                    MainHabitView()
+                        .tabItem {
+                            Image(systemName: "house.fill")
+                            Text("Habits")
+                        }
+                        .tag(0)
+                    
+                    // Analytics Tab
+                    AnalyticsView()
+                        .tabItem {
+                            Image(systemName: "chart.bar.fill")
+                            Text("Analytics")
+                        }
+                        .tag(1)
+                    
+                    // Challenges Tab
+                    ChallengesView()
+                        .tabItem {
+                            Image(systemName: "trophy.fill")
+                            Text("Challenges")
+                        }
+                        .tag(2)
                 }
-                .tag(0)
-            
-            // Analytics Tab
-            AnalyticsView()
-                .tabItem {
-                    Image(systemName: "chart.bar.fill")
-                    Text("Analytics")
-                }
-                .tag(1)
+                .preferredColorScheme(habitManager.theme == .light ? .light : habitManager.theme == .dark ? .dark : nil)
+                .environmentObject(authManager)
+                .environmentObject(challengeManager)
+            } else {
+                // Authentication
+                AuthView()
+                    .environmentObject(authManager)
+            }
         }
-        .preferredColorScheme(habitManager.theme == .light ? .light : habitManager.theme == .dark ? .dark : nil)
     }
 }
 

@@ -1,10 +1,16 @@
 
 import SwiftUI
+import Firebase
 
 @main
 struct AnotherLifeApp: App {
     @StateObject private var habitManager = HabitManager()
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    
+    // Initialize Firebase
+    init() {
+        FirebaseApp.configure()
+    }
     
     var body: some Scene {
         WindowGroup {

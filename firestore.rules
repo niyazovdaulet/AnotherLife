@@ -11,16 +11,29 @@ service cloud.firestore {
     match /challenges/{challengeId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.createdBy;
-      allow update: if request.auth != null && request.auth.uid == resource.data.createdBy;
+      allow update: if request.auth != null;
       allow delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
     }
     
     // Challenge Progress collection
     match /challengeProgress/{progressId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Daily Status collection
+    match /dailyStatus/{statusId} {
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow read: if request.auth != null; // Allow reading for leaderboards
+      allow read: if request.auth != null; // Allow reading for streak calculations
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
       allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // Challenge Activity collection
+    match /challengeActivity/{activityId} {
+      allow read: if request.auth != null; // Allow reading for activity feeds
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update: if false; // Activities are immutable once created
       allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
     

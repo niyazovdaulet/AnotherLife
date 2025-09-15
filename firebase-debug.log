@@ -1,20 +1,20 @@
-[debug] [2025-09-10T12:36:38.803Z] ----------------------------------------------------------------------
-[debug] [2025-09-10T12:36:38.804Z] Command:       /opt/homebrew/Cellar/node/24.7.0/bin/node /opt/homebrew/bin/firebase login --no-localhost
-[debug] [2025-09-10T12:36:38.804Z] CLI Version:   14.15.2
-[debug] [2025-09-10T12:36:38.804Z] Platform:      darwin
-[debug] [2025-09-10T12:36:38.804Z] Node Version:  v24.7.0
-[debug] [2025-09-10T12:36:38.804Z] Time:          Wed Sep 10 2025 14:36:38 GMT+0200 (Central European Summer Time)
-[debug] [2025-09-10T12:36:38.804Z] ----------------------------------------------------------------------
+[debug] [2025-09-12T12:35:40.945Z] ----------------------------------------------------------------------
+[debug] [2025-09-12T12:35:40.949Z] Command:       /opt/homebrew/Cellar/node/24.7.0/bin/node /opt/homebrew/bin/firebase login --no-localhost
+[debug] [2025-09-12T12:35:40.949Z] CLI Version:   14.15.2
+[debug] [2025-09-12T12:35:40.949Z] Platform:      darwin
+[debug] [2025-09-12T12:35:40.949Z] Node Version:  v24.7.0
+[debug] [2025-09-12T12:35:40.949Z] Time:          Fri Sep 12 2025 14:35:40 GMT+0200 (Central European Summer Time)
+[debug] [2025-09-12T12:35:40.949Z] ----------------------------------------------------------------------
 [debug] 
-[debug] [2025-09-10T12:36:38.805Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2025-09-12T12:35:40.950Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
 [info] i  The Firebase CLI’s MCP server feature can optionally make use of Gemini in Firebase. Learn more about Gemini in Firebase and how it uses your data: https://firebase.google.com/docs/gemini-in-firebase#how-gemini-in-firebase-uses-your-data 
-[debug] [2025-09-10T12:36:39.205Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
-[debug] [2025-09-10T12:36:39.205Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2025-09-12T12:35:41.385Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2025-09-12T12:35:41.386Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
 [warn] ⚠  Unable to fetch the CLI MOTD and remote config. This is not a fatal error, but may indicate an issue with your network connection. 
-[debug] [2025-09-10T12:36:39.206Z] Failed to fetch MOTD Error: EACCES: permission denied, mkdir '/Users/dauka/.config/configstore'
+[debug] [2025-09-12T12:35:41.387Z] Failed to fetch MOTD Error: EACCES: permission denied, mkdir '/Users/dauka/.config/configstore'
 You don't have access to this file.
 
-[debug] [2025-09-10T12:37:53.905Z] ExitPromptError: User force closed the prompt with SIGINT
+[debug] [2025-09-12T12:36:07.593Z] ExitPromptError: User force closed the prompt with SIGINT
     at Interface.sigint (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/@inquirer/core/dist/commonjs/lib/create-prompt.js:101:37)
     at Interface.emit (node:events:508:28)
     at Interface.emit (node:domain:489:12)
@@ -27,7 +27,7 @@ You don't have access to this file.
     at ReadStream.onData (node:internal/readline/emitKeypressEvents:64:36)
 [error] 
 [error] Error: An unexpected error has occurred.
-[debug] [2025-09-10T12:37:54.162Z] Error: EACCES: permission denied, mkdir '/Users/dauka/.config/configstore'
+[debug] [2025-09-12T12:36:07.857Z] Error: EACCES: permission denied, mkdir '/Users/dauka/.config/configstore'
 You don't have access to this file.
 
     at Object.mkdirSync (node:fs:1349:26)

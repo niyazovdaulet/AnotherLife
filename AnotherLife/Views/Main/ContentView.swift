@@ -48,6 +48,21 @@ struct ContentView: View {
                 .preferredColorScheme(habitManager.theme == .light ? .light : habitManager.theme == .dark ? .dark : nil)
                 .environmentObject(authManager)
                 .environmentObject(challengeManager)
+                .onAppear {
+                    // Set up real-time listeners when user is authenticated
+                    if authManager.isAuthenticated {
+                        challengeManager.setupRealTimeListeners()
+                    }
+                }
+                .onChange(of: authManager.isAuthenticated) { isAuthenticated in
+                    if isAuthenticated {
+                        // Set up listeners when user becomes authenticated
+                        challengeManager.setupRealTimeListeners()
+                    } else {
+                        // Clean up data and listeners when user logs out
+                        challengeManager.clearAllData()
+                    }
+                }
             } else {
                 // Authentication
                 AuthView()

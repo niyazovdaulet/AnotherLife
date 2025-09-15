@@ -8,6 +8,19 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Leaderboard Entry
+struct LeaderboardEntry: Identifiable {
+    let id: String
+    let user: User
+    let completedDays: Int
+    
+    init(user: User, completedDays: Int) {
+        self.id = user.id
+        self.user = user
+        self.completedDays = completedDays
+    }
+}
+
 // MARK: - User Model
 struct User: Identifiable, Codable {
     let id: String // Firebase UID
@@ -143,6 +156,26 @@ struct Challenge: Identifiable, Codable {
         self.memberCount = memberCount
         self.isActive = true
     }
+    
+    // Custom initializer for parsing from Firebase
+    init(id: String, title: String, description: String, type: ChallengeType, privacy: ChallengePrivacy, createdBy: String, createdAt: Date, startDate: Date, endDate: Date, targetValue: Int, targetUnit: String, habitIds: [String], pointsReward: Int, badgeReward: String?, memberCount: Int, isActive: Bool) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.type = type
+        self.privacy = privacy
+        self.createdBy = createdBy
+        self.createdAt = createdAt
+        self.startDate = startDate
+        self.endDate = endDate
+        self.targetValue = targetValue
+        self.targetUnit = targetUnit
+        self.habitIds = habitIds
+        self.pointsReward = pointsReward
+        self.badgeReward = badgeReward
+        self.memberCount = memberCount
+        self.isActive = isActive
+    }
 }
 
 // MARK: - Challenge Progress Model
@@ -165,6 +198,18 @@ struct ChallengeProgress: Identifiable, Codable {
         self.status = .active
         self.lastUpdatedAt = Date()
         self.completedAt = nil
+    }
+    
+    // Custom initializer for parsing from Firebase
+    init(id: String, challengeId: String, userId: String, joinedAt: Date, currentValue: Int, status: ChallengeStatus, lastUpdatedAt: Date, completedAt: Date?) {
+        self.id = id
+        self.challengeId = challengeId
+        self.userId = userId
+        self.joinedAt = joinedAt
+        self.currentValue = currentValue
+        self.status = status
+        self.lastUpdatedAt = lastUpdatedAt
+        self.completedAt = completedAt
     }
 }
 

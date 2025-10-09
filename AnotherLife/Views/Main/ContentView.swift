@@ -51,12 +51,14 @@ struct ContentView: View {
                 .onAppear {
                     // Set up real-time listeners when user is authenticated
                     if authManager.isAuthenticated {
+                        challengeManager.setAuthManager(authManager)
                         challengeManager.setupRealTimeListeners()
                     }
                 }
                 .onChange(of: authManager.isAuthenticated) { isAuthenticated in
                     if isAuthenticated {
                         // Set up listeners when user becomes authenticated
+                        challengeManager.setAuthManager(authManager)
                         challengeManager.setupRealTimeListeners()
                     } else {
                         // Clean up data and listeners when user logs out

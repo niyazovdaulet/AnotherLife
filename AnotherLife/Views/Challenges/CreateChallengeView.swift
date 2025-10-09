@@ -40,7 +40,7 @@ struct CreateChallengeView: View {
                         privacySection
                         
                         // Target Settings
-                        targetSection
+//                        targetSection
                         
                         // Duration
                         durationSection
@@ -232,42 +232,42 @@ struct CreateChallengeView: View {
         )
     }
     
-    // MARK: - Target Section
-    private var targetSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Target")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
-            
-            VStack(spacing: 16) {
-                HStack {
-                    Text("Target Value")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.textPrimary)
-                    
-                    Spacer()
-                    
-                    Stepper(value: $targetValue, in: 1...100) {
-                        Text("\(targetValue)")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.textPrimary)
-                    }
-                }
-                
-                Text("Participants need to complete \(targetValue) \(targetUnit)")
-                    .font(.caption)
-                    .foregroundColor(.textSecondary)
-            }
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
-        )
-    }
+//    // MARK: - Target Section
+//    private var targetSection: some View {
+//        VStack(alignment: .leading, spacing: 16) {
+//            Text("Target")
+//                .font(.headline)
+//                .foregroundColor(.textPrimary)
+//            
+//            VStack(spacing: 16) {
+//                HStack {
+//                    Text("Target Value")
+//                        .font(.subheadline)
+//                        .fontWeight(.medium)
+//                        .foregroundColor(.textPrimary)
+//                    
+//                    Spacer()
+//                    
+//                    Stepper(value: $targetValue, in: 1...100) {
+//                        Text("\(targetValue)")
+//                            .font(.subheadline)
+//                            .fontWeight(.medium)
+//                            .foregroundColor(.textPrimary)
+//                    }
+//                }
+//                
+//                Text("Participants need to complete \(targetValue) \(targetUnit)")
+//                    .font(.caption)
+//                    .foregroundColor(.textSecondary)
+//            }
+//        }
+//        .padding(20)
+//        .background(
+//            RoundedRectangle(cornerRadius: 16)
+//                .fill(Color.cardBackground)
+//                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+//        )
+//    }
     
     // MARK: - Duration Section
     private var durationSection: some View {

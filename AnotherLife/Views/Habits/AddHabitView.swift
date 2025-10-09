@@ -100,7 +100,7 @@ struct AddHabitView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 60))
-                        .foregroundColor(.primaryBlue)
+                        .foregroundColor(.yellow)
                     
                     Text("Choose a Habit Template")
                         .font(.title2)
@@ -501,7 +501,7 @@ struct AddHabitView: View {
     private func selectTemplate(_ template: HabitTemplate) {
         title = template.title
         description = template.description
-        frequency = template.suggestedFrequency
+//        frequency = template.suggestedFrequency
         isPositive = template.isPositive
         selectedColor = template.colorHex
         selectedIcon = template.icon
@@ -613,16 +613,16 @@ struct TemplateCardView: View {
                     .lineLimit(2)
                     .frame(height: 32)
                 
-                // Frequency Badge
-                Text(template.suggestedFrequency.displayName)
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(templateColor.opacity(0.2))
-                    )
+//                // Frequency Badge
+//                Text(template.suggestedFrequency.displayName)
+//                    .font(.caption2)
+//                    .fontWeight(.medium)
+//                    .padding(.horizontal, 8)
+//                    .padding(.vertical, 4)
+//                    .background(
+//                        Capsule()
+//                            .fill(templateColor.opacity(0.2))
+//                    )
                     .foregroundColor(templateColor)
             }
             .padding(16)
@@ -661,6 +661,6 @@ struct TemplateCardView: View {
 }
 
 #Preview {
-    AddHabitView()
+    AddHabitView() 
         .environmentObject(HabitManager())
 }

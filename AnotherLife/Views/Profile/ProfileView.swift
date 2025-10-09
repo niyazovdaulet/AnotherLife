@@ -313,7 +313,7 @@ struct ProfileView: View {
                 InfoRow(
                     icon: "info.circle",
                     title: "App Version",
-                    value: "1.0.0"
+                    value: "1.2.2"
                 )
                 
                 InfoRow(

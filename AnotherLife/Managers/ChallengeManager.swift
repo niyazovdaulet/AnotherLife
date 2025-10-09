@@ -32,9 +32,14 @@ class ChallengeManager: ObservableObject {
     private let db = Firestore.firestore()
     private var challengeListeners: [ListenerRegistration] = []
     private var progressListeners: [ListenerRegistration] = []
+    private weak var authManager: AuthManager?
     
     init() {
         // Don't set up listeners in init - wait for user to be authenticated
+    }
+    
+    func setAuthManager(_ authManager: AuthManager) {
+        self.authManager = authManager
     }
     
     deinit {
@@ -165,6 +170,12 @@ class ChallengeManager: ObservableObject {
             // Award "Challenge Rookie" badge if first challenge
             await awardBadgeIfNeeded(badgeId: "first_challenge")
             
+            // Add activity entry
+            await addChallengeActivity(
+                challengeId: challenge.id,
+                action: "joined_challenge"
+            )
+            
             isLoading = false
             return true
             
@@ -213,6 +224,96 @@ class ChallengeManager: ObservableObject {
             
         } catch {
             errorMessage = "Failed to leave challenge: \(error.localizedDescription)"
+            isLoading = false
+            return false
+        }
+    }
+    
+    // MARK: - Challenge Editing
+    
+    func updateChallenge(
+        challengeId: String,
+        title: String,
+        description: String,
+        type: ChallengeType,
+        privacy: ChallengePrivacy,
+        duration: Int,
+        pointsReward: Int,
+        badgeReward: String? = nil
+    ) async -> Bool {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            print("❌ updateChallenge: No authenticated user")
+            errorMessage = "User not authenticated"
+            return false
+        }
+        
+        // Find the challenge to ensure user is the owner
+        guard let challenge = myChallenges.first(where: { $0.id == challengeId }),
+              challenge.createdBy == currentUserId else {
+            print("❌ updateChallenge: User is not the creator of this challenge")
+            errorMessage = "You can only edit challenges you created"
+            return false
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            print("🔄 Updating challenge: \(challengeId)")
+            
+            // Calculate new end date based on updated duration
+            let newEndDate = Calendar.current.date(byAdding: .day, value: duration, to: challenge.startDate) ?? challenge.endDate
+            
+            // Prepare update data
+            let updateData: [String: Any] = [
+                "title": title,
+                "description": description,
+                "type": type.rawValue,
+                "privacy": privacy.rawValue,
+                "endDate": Timestamp(date: newEndDate),
+                "pointsReward": pointsReward,
+                "badgeReward": badgeReward as Any
+            ]
+            
+            print("🔄 Update data: \(updateData)")
+            
+            // Update challenge in Firestore
+            try await db.collection("challenges").document(challengeId).updateData(updateData)
+            print("✅ Successfully updated challenge in Firestore")
+            
+            // Update local cache
+            await MainActor.run {
+                if let index = self.myChallenges.firstIndex(where: { $0.id == challengeId }) {
+                    // Create updated challenge with new values but preserve other fields
+                    let updatedChallenge = Challenge(
+                        id: challenge.id,
+                        title: title,
+                        description: description,
+                        type: type,
+                        privacy: privacy,
+                        createdBy: challenge.createdBy,
+                        createdAt: challenge.createdAt,
+                        startDate: challenge.startDate,
+                        endDate: newEndDate,
+                        targetValue: challenge.targetValue,
+                        targetUnit: challenge.targetUnit,
+                        habitIds: challenge.habitIds,
+                        pointsReward: pointsReward,
+                        badgeReward: badgeReward,
+                        memberCount: challenge.memberCount,
+                        isActive: challenge.isActive
+                    )
+                    self.myChallenges[index] = updatedChallenge
+                    print("✅ Updated local cache")
+                }
+            }
+            
+            isLoading = false
+            return true
+            
+        } catch {
+            print("❌ updateChallenge: Error - \(error.localizedDescription)")
+            errorMessage = "Failed to update challenge: \(error.localizedDescription)"
             isLoading = false
             return false
         }
@@ -303,7 +404,10 @@ class ChallengeManager: ObservableObject {
         do {
             print("🔄 updateChallengeProgress: Updating progress for challengeId: \(challengeId)")
             print("🔄 updateChallengeProgress: Progress ID: \(progress.id)")
-            print("🔄 updateChallengeProgress: New value: \(newValue)")
+            
+            // Calculate progress by counting unique completed days from dailyStatus collection
+            let completedDaysCount = await calculateCompletedDaysCount(challengeId: challengeId)
+            print("🔄 updateChallengeProgress: Calculated completed days: \(completedDaysCount)")
 
             let docRef = db.collection("challengeProgress").document(progress.id)
             
@@ -311,9 +415,9 @@ class ChallengeManager: ObservableObject {
             let document = try await docRef.getDocument()
             if document.exists {
                 print("✅ updateChallengeProgress: Updating existing document...")
-                // Update progress in Firestore
+                // Update progress in Firestore with calculated value
                 try await docRef.updateData([
-                    "currentValue": newValue,
+                    "currentValue": completedDaysCount,
                     "lastUpdatedAt": Timestamp(date: Date())
                 ])
             } else {
@@ -321,24 +425,26 @@ class ChallengeManager: ObservableObject {
                 // Create the document with full data
                 let progressData = progressToDictionary(progress)
                 var updatedData = progressData
-                updatedData["currentValue"] = newValue
+                updatedData["currentValue"] = completedDaysCount
                 updatedData["lastUpdatedAt"] = Timestamp(date: Date())
                 try await docRef.setData(updatedData)
             }
 
-            print("✅ updateChallengeProgress: Successfully updated progress")
+            print("✅ updateChallengeProgress: Successfully updated progress to \(completedDaysCount)")
 
-            // Update the local progress cache
+            // Update the local progress cache with calculated value
             if var progress = challengeProgress[challengeId] {
-                progress.currentValue = newValue
+                progress.currentValue = completedDaysCount
                 progress.lastUpdatedAt = Date()
                 challengeProgress[challengeId] = progress
                 print("✅ updateChallengeProgress: Updated local progress cache")
             }
 
-            // Check if challenge is completed
+            // Check if challenge is completed (completed all days of duration)
             if let challenge = challenges.first(where: { $0.id == challengeId }) {
-                if newValue >= challenge.targetValue {
+                let calendar = Calendar.current
+                let duration = calendar.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
+                if completedDaysCount >= duration {
                     await completeChallenge(challenge)
                 }
             }
@@ -349,6 +455,24 @@ class ChallengeManager: ObservableObject {
             print("❌ updateChallengeProgress: Error - \(error.localizedDescription)")
             errorMessage = "Failed to update progress: \(error.localizedDescription)"
             return false
+        }
+    }
+    
+    // Helper function to calculate completed days from dailyStatus collection
+    private func calculateCompletedDaysCount(challengeId: String) async -> Int {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return 0 }
+        
+        do {
+            let snapshot = try await db.collection("dailyStatus")
+                .whereField("challengeId", isEqualTo: challengeId)
+                .whereField("userId", isEqualTo: currentUserId)
+                .whereField("status", isEqualTo: DailyStatus.completed.rawValue)
+                .getDocuments()
+            
+            return snapshot.documents.count
+        } catch {
+            print("❌ Failed to calculate completed days: \(error.localizedDescription)")
+            return 0
         }
     }
     
@@ -664,6 +788,26 @@ class ChallengeManager: ObservableObject {
         }
         
         do {
+            // For check-in actions (completed/skipped), check if activity already exists for today
+            if action == "completed" || action == "skipped" {
+                let today = Calendar.current.startOfDay(for: Date())
+                let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) ?? Date()
+                
+                // Check if activity already exists for this user, challenge, and action today
+                let existingActivity = try await db.collection("challengeActivity")
+                    .whereField("challengeId", isEqualTo: challengeId)
+                    .whereField("userId", isEqualTo: currentUserId)
+                    .whereField("action", isEqualTo: action)
+                    .whereField("createdAt", isGreaterThanOrEqualTo: Timestamp(date: today))
+                    .whereField("createdAt", isLessThan: Timestamp(date: tomorrow))
+                    .getDocuments()
+                
+                if !existingActivity.documents.isEmpty {
+                    print("⚠️ addChallengeActivity: Activity already exists for today - skipping duplicate")
+                    return true // Return true as the activity already exists
+                }
+            }
+            
             let activityData: [String: Any] = [
                 "challengeId": challengeId,
                 "userId": currentUserId,
@@ -697,18 +841,187 @@ class ChallengeManager: ObservableObject {
                 "completedAt": Timestamp(date: Date())
             ])
             
-            // Award points
-            // Note: This would typically be handled by AuthManager
-            print("Challenge completed! Awarding \(challenge.pointsReward) points")
+            // Update local progress cache
+            if var localProgress = challengeProgress[challenge.id] {
+                localProgress.status = .completed
+                localProgress.completedAt = Date()
+                challengeProgress[challenge.id] = localProgress
+            }
+            
+            // Award points through AuthManager
+            await awardChallengePoints(challenge.pointsReward)
             
             // Award badge if specified
             if let badgeReward = challenge.badgeReward {
                 await awardBadgeIfNeeded(badgeId: badgeReward)
             }
             
+            // Add completion activity
+            await addChallengeActivity(
+                challengeId: challenge.id,
+                action: "completed_challenge"
+            )
+            
+            print("✅ Challenge completed! Awarded \(challenge.pointsReward) points")
+            
         } catch {
-            print("Failed to complete challenge: \(error.localizedDescription)")
+            print("❌ Failed to complete challenge: \(error.localizedDescription)")
         }
+    }
+    
+    // MARK: - Challenge Completion with Celebration
+    
+    func completeChallengeWithCelebration(_ challenge: Challenge) async -> (Bool, String, Int) {
+        guard let currentUserId = Auth.auth().currentUser?.uid,
+              let progress = challengeProgress[challenge.id] else { 
+            return (false, "Challenge not found", 0)
+        }
+        
+        do {
+            // Update progress status to completed
+            try await db.collection("challengeProgress").document(progress.id).updateData([
+                "status": ChallengeStatus.completed.rawValue,
+                "completedAt": Timestamp(date: Date())
+            ])
+            
+            // Also update the challenge itself to mark as completed (if user is the creator)
+            if challenge.createdBy == currentUserId {
+                try await db.collection("challenges").document(challenge.id).updateData([
+                    "isActive": false,
+                    "completedAt": Timestamp(date: Date())
+                ])
+            }
+            
+            // Update local progress cache
+            if var localProgress = challengeProgress[challenge.id] {
+                localProgress.status = .completed
+                localProgress.completedAt = Date()
+                challengeProgress[challenge.id] = localProgress
+            }
+            
+            // Award points through AuthManager
+            await awardChallengePoints(challenge.pointsReward)
+            
+            // Award badge if specified
+            if let badgeReward = challenge.badgeReward {
+                await awardBadgeIfNeeded(badgeId: badgeReward)
+            }
+            
+            // Add completion activity
+            await addChallengeActivity(
+                challengeId: challenge.id,
+                action: "completed_challenge"
+            )
+            
+            // Force refresh data to ensure UI updates
+            await refreshChallengeData()
+            
+            let message = "Congratulations! You completed '\(challenge.title)' and earned \(challenge.pointsReward) stars! 🎉"
+            return (true, message, challenge.pointsReward)
+            
+        } catch {
+            print("❌ Failed to complete challenge: \(error.localizedDescription)")
+            return (false, "Failed to complete challenge", 0)
+        }
+    }
+    
+    // Method to automatically complete ended challenges
+    func autoCompleteEndedChallenges() async {
+        let currentDate = Date()
+        
+        // Check all challenges for auto-completion
+        for challenge in myChallenges + joinedChallenges {
+            // If challenge has ended and user has progress but not completed
+            if challenge.endDate <= currentDate,
+               let progress = challengeProgress[challenge.id],
+               progress.status != .completed {
+                
+                print("🔄 Auto-completing ended challenge: \(challenge.title)")
+                
+                // Calculate challenge duration
+                let calendar = Calendar.current
+                let duration = calendar.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
+                let durationDays = max(1, duration)
+                
+                // Check if user actually completed all required days
+                let completedAllDays = progress.currentValue >= durationDays
+                
+                // Update progress status to completed
+                do {
+                    try await db.collection("challengeProgress").document(progress.id).updateData([
+                        "status": ChallengeStatus.completed.rawValue,
+                        "completedAt": Timestamp(date: currentDate)
+                    ])
+                    
+                    // Update local progress cache
+                    if var localProgress = challengeProgress[challenge.id] {
+                        localProgress.status = .completed
+                        localProgress.completedAt = currentDate
+                        challengeProgress[challenge.id] = localProgress
+                    }
+                    
+                    // Update challenge status if user is creator
+                    if challenge.createdBy == Auth.auth().currentUser?.uid {
+                        try await db.collection("challenges").document(challenge.id).updateData([
+                            "isActive": false,
+                            "completedAt": Timestamp(date: currentDate)
+                        ])
+                    }
+                    
+                    // Award points only if user completed all required days
+                    if completedAllDays {
+                        await awardChallengePoints(challenge.pointsReward)
+                        
+                        // Award badge if specified
+                        if let badgeReward = challenge.badgeReward {
+                            await awardBadgeIfNeeded(badgeId: badgeReward)
+                        }
+                        
+                        print("✅ Auto-completed challenge with rewards: \(challenge.title)")
+                    } else {
+                        print("✅ Auto-completed challenge without rewards (incomplete): \(challenge.title)")
+                    }
+                    
+                    // Add completion activity
+                    await addChallengeActivity(
+                        challengeId: challenge.id,
+                        action: "completed_challenge"
+                    )
+                    
+                } catch {
+                    print("❌ Failed to auto-complete challenge: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    // MARK: - Points and Rewards
+    
+    private func awardChallengePoints(_ points: Int) async {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        
+        do {
+            // Update user's points in Firestore
+            try await db.collection("users").document(currentUserId).updateData([
+                "totalPoints": FieldValue.increment(Int64(points)),
+                "lastActiveAt": Timestamp(date: Date())
+            ])
+            
+            // Update local user data through AuthManager
+            await MainActor.run {
+                if let authManager = self.authManager {
+                    authManager.addPoints(points)
+                }
+            }
+            
+        } catch {
+            print("❌ Failed to award points: \(error.localizedDescription)")
+        }
+    }
+    
+    private func calculateLevel(for points: Int) -> Int {
+        // Simple level calculation: every 1000 points = 1 level
+        return max(1, points / 1000 + 1)
     }
     
     // MARK: - Real-time Listeners
@@ -903,6 +1216,94 @@ class ChallengeManager: ObservableObject {
         joinedChallenges.removeAll()
         challengeProgress.removeAll()
         removeAllListeners()
+    }
+    
+    // MARK: - Debug and Refresh Methods
+    
+    func refreshChallengeData() async {
+        print("🔄 Refreshing challenge data...")
+        
+        // Force refresh from Firebase
+        await refreshMyChallenges()
+        await refreshPublicChallenges()
+        await refreshProgressData()
+        
+        print("✅ Challenge data refreshed")
+        print("📊 Active challenges: \(activeChallenges.count)")
+        print("📊 Completed challenges: \(completedChallenges.count)")
+        print("📊 Progress entries: \(challengeProgress.count)")
+    }
+    
+    
+    private func refreshMyChallenges() async {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        
+        do {
+            let snapshot = try await db.collection("challenges")
+                .whereField("createdBy", isEqualTo: currentUserId)
+                .order(by: "createdAt", descending: true)
+                .getDocuments()
+            
+            let challenges = snapshot.documents.compactMap { document in
+                dictionaryToChallenge(document.data())
+            }
+            
+            await MainActor.run {
+                self.myChallenges = challenges
+                print("🔄 Refreshed myChallenges: \(challenges.count) challenges")
+            }
+        } catch {
+            print("❌ Failed to refresh my challenges: \(error.localizedDescription)")
+        }
+    }
+    
+    private func refreshPublicChallenges() async {
+        do {
+            let snapshot = try await db.collection("challenges")
+                .whereField("privacy", isEqualTo: ChallengePrivacy.publicChallenge.rawValue)
+                .order(by: "memberCount", descending: true)
+                .limit(to: 20)
+                .getDocuments()
+            
+            let challenges = snapshot.documents.compactMap { document in
+                dictionaryToChallenge(document.data())
+            }
+            
+            await MainActor.run {
+                self.publicChallenges = challenges
+                print("🔄 Refreshed publicChallenges: \(challenges.count) challenges")
+            }
+        } catch {
+            print("❌ Failed to refresh public challenges: \(error.localizedDescription)")
+        }
+    }
+    
+    private func refreshProgressData() async {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        
+        do {
+            let snapshot = try await db.collection("challengeProgress")
+                .whereField("userId", isEqualTo: currentUserId)
+                .getDocuments()
+            
+            var progressDict: [String: ChallengeProgress] = [:]
+            
+            for document in snapshot.documents {
+                if let progress = dictionaryToChallengeProgress(document.data()) {
+                    progressDict[progress.challengeId] = progress
+                }
+            }
+            
+            await MainActor.run {
+                self.challengeProgress = progressDict
+                print("🔄 Refreshed challengeProgress: \(progressDict.count) entries")
+                
+                // Refresh joined challenges
+                self.loadJoinedChallenges()
+            }
+        } catch {
+            print("❌ Failed to refresh progress data: \(error.localizedDescription)")
+        }
     }
     
     private func ensureCreatorProgressEntries() {
@@ -1167,18 +1568,27 @@ class ChallengeManager: ObservableObject {
         
         // Add challenges created by user (they are automatically joined)
         challenges.append(contentsOf: myChallenges.filter { challenge in
-            challenge.isActive && challenge.endDate > Date()
+            // Must be active, not ended, and not completed
+            challenge.isActive && 
+            challenge.endDate > Date() &&
+            challengeProgress[challenge.id]?.status != .completed
         })
         
         // Add challenges joined by user (but not created by them)
         challenges.append(contentsOf: joinedChallenges.filter { challenge in
+            // Must be active, not ended, have progress, not completed, and not created by user
             challenge.isActive && 
             challenge.endDate > Date() &&
             challengeProgress[challenge.id] != nil &&
+            challengeProgress[challenge.id]?.status != .completed &&
             !myChallenges.contains { $0.id == challenge.id }
         })
         
-        return challenges
+        // Remove duplicates
+        let uniqueChallenges = Array(Set(challenges.map { $0.id }))
+            .compactMap { id in challenges.first { $0.id == id } }
+        
+        return uniqueChallenges
     }
 
     var completedChallenges: [Challenge] {
@@ -1196,7 +1606,11 @@ class ChallengeManager: ObservableObject {
             !myChallenges.contains { $0.id == challenge.id }
         })
         
-        return challenges
+        // Remove duplicates
+        let uniqueChallenges = Array(Set(challenges.map { $0.id }))
+            .compactMap { id in challenges.first { $0.id == id } }
+        
+        return uniqueChallenges
     }
     
     var availablePublicChallenges: [Challenge] {

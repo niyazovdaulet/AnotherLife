@@ -10,8 +10,16 @@ import SwiftUI
 struct ChallengesView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var challengeManager: ChallengeManager
+    @StateObject private var leaderboardManager = LeaderboardManager()
     @State private var selectedTab = 0
     @State private var showingCreateChallenge = false
+    @State private var showingCompletionAlert = false
+    @State private var completionMessage = ""
+    @State private var completionPoints = 0
+    @State private var showingJoinSuccessAlert = false
+    @State private var joinSuccessMessage = ""
+    @State private var selectedCategory: ChallengeType? = nil
+    @State private var showingAllChallenges = false
     
     var body: some View {
         NavigationView {
@@ -41,6 +49,20 @@ struct ChallengesView: View {
             .navigationTitle("Challenges")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { 
+                        Task {
+                            // Refresh both challenge data and leaderboard
+                            await challengeManager.refreshChallengeData()
+                            await leaderboardManager.refreshLeaderboard()
+                        }
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                            .foregroundColor(.primaryBlue)
+                            .font(.title3)
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingCreateChallenge = true }) {
                         Image(systemName: "plus.circle.fill")
@@ -52,6 +74,31 @@ struct ChallengesView: View {
         }
         .sheet(isPresented: $showingCreateChallenge) {
             CreateChallengeView()
+        }
+        .onAppear {
+            challengeManager.setAuthManager(authManager)
+            // Auto-complete any ended challenges
+            Task {
+                await challengeManager.autoCompleteEndedChallenges()
+                // Refresh challenge data to reflect any auto-completions
+                await challengeManager.refreshChallengeData()
+            }
+            // Initialize leaderboard
+            leaderboardManager.setupLeaderboardListener()
+        }
+        .alert("Challenge Completed! 🎉", isPresented: $showingCompletionAlert) {
+            Button("Awesome!") {
+                showingCompletionAlert = false
+            }
+        } message: {
+            Text(completionMessage)
+        }
+        .alert("Success! 🎉", isPresented: $showingJoinSuccessAlert) {
+            Button("Great!") {
+                showingJoinSuccessAlert = false
+            }
+        } message: {
+            Text(joinSuccessMessage)
         }
     }
     
@@ -122,6 +169,18 @@ struct ChallengesView: View {
         ["My Challenges", "Discover", "Leaderboard"]
     }
     
+    // MARK: - Computed Properties
+    
+    private var filteredChallenges: [Challenge] {
+        let challenges = challengeManager.availablePublicChallenges
+        
+        if let selectedCategory = selectedCategory {
+            return challenges.filter { $0.type == selectedCategory }
+        } else {
+            return challenges
+        }
+    }
+    
     // MARK: - My Challenges View
     private var myChallengesView: some View {
         ScrollView {
@@ -136,8 +195,10 @@ struct ChallengesView: View {
                     .padding(.horizontal, 20)
                 } else if challengeManager.activeChallenges.isEmpty && challengeManager.completedChallenges.isEmpty {
                     // Empty state
-                    EmptyChallengesView(isMyChallenges: true)
-                        .padding(.horizontal, 20)
+                    EmptyChallengesView(isMyChallenges: true) {
+                        showingCreateChallenge = true
+                    }
+                    .padding(.horizontal, 20)
                 } else {
                     // Active Challenges
                     VStack(alignment: .leading, spacing: 12) {
@@ -163,7 +224,15 @@ struct ChallengesView: View {
                         
                         // Active Challenges
                         ForEach(challengeManager.activeChallenges, id: \.id) { challenge in
-                            ChallengeCardView(challenge: challenge, isMyChallenge: true)
+                            ChallengeCardView(
+                                challenge: challenge, 
+                                isMyChallenge: true,
+                                showingCompletionAlert: $showingCompletionAlert,
+                                completionMessage: $completionMessage,
+                                completionPoints: $completionPoints,
+                                showingJoinSuccessAlert: $showingJoinSuccessAlert,
+                                joinSuccessMessage: $joinSuccessMessage
+                            )
                         }
                     }
                     .padding(.horizontal, 20)
@@ -193,7 +262,15 @@ struct ChallengesView: View {
                             
                             // Completed Challenges
                             ForEach(challengeManager.completedChallenges, id: \.id) { challenge in
-                                ChallengeCardView(challenge: challenge, isMyChallenge: true)
+                                ChallengeCardView(
+                                    challenge: challenge, 
+                                    isMyChallenge: true,
+                                    showingCompletionAlert: $showingCompletionAlert,
+                                    completionMessage: $completionMessage,
+                                    completionPoints: $completionPoints,
+                                    showingJoinSuccessAlert: $showingJoinSuccessAlert,
+                                    joinSuccessMessage: $joinSuccessMessage
+                                )
                             }
                         }
                         .padding(.horizontal, 20)
@@ -218,8 +295,19 @@ struct ChallengesView: View {
                     
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
+                            // All Categories button
+                            CategoryChipView(
+                                type: nil, 
+                                isSelected: selectedCategory == nil,
+                                onTap: { selectedCategory = nil }
+                            )
+                            
                             ForEach(ChallengeType.allCases, id: \.self) { type in
-                                CategoryChipView(type: type)
+                                CategoryChipView(
+                                    type: type, 
+                                    isSelected: selectedCategory == type,
+                                    onTap: { selectedCategory = type }
+                                )
                             }
                         }
                         .padding(.horizontal, 20)
@@ -229,7 +317,7 @@ struct ChallengesView: View {
                 // Trending Challenges
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("Trending")
+                        Text(selectedCategory?.displayName ?? "All Challenges")
                             .font(.headline)
                             .fontWeight(.bold)
                             .foregroundColor(.textPrimary)
@@ -237,19 +325,37 @@ struct ChallengesView: View {
                         Spacer()
                         
                         Button("See All") {
-                            // TODO: Navigate to all challenges
+                            showingAllChallenges = true
                         }
                         .font(.subheadline)
                         .foregroundColor(.primaryBlue)
                     }
                     .padding(.horizontal, 20)
                     
-                    ForEach(challengeManager.availablePublicChallenges, id: \.id) { challenge in
-                        ChallengeCardView(challenge: challenge, isMyChallenge: false)
+                    ForEach(filteredChallenges, id: \.id) { challenge in
+                        ChallengeCardView(
+                            challenge: challenge, 
+                            isMyChallenge: false,
+                            showingCompletionAlert: $showingCompletionAlert,
+                            completionMessage: $completionMessage,
+                            completionPoints: $completionPoints,
+                            showingJoinSuccessAlert: $showingJoinSuccessAlert,
+                            joinSuccessMessage: $joinSuccessMessage
+                        )
                     }
                 }
                 .padding(.bottom, 20)
             }
+        }
+        .sheet(isPresented: $showingAllChallenges) {
+            AllChallengesView(
+                selectedCategory: selectedCategory,
+                showingCompletionAlert: $showingCompletionAlert,
+                completionMessage: $completionMessage,
+                completionPoints: $completionPoints,
+                showingJoinSuccessAlert: $showingJoinSuccessAlert,
+                joinSuccessMessage: $joinSuccessMessage
+            )
         }
     }
     
@@ -257,61 +363,248 @@ struct ChallengesView: View {
     private var leaderboardView: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
-                // Your Rank
-                VStack(spacing: 12) {
-                    Text("Your Rank")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.textPrimary)
-                    
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("#42")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(.primaryBlue)
-                            
-                            Text("of 1,234 players")
-                                .font(.subheadline)
-                                .foregroundColor(.textSecondary)
+                if leaderboardManager.isLoading {
+                    // Loading state
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .foregroundColor(.primaryBlue)
+                        
+                        Text("Loading leaderboard...")
+                            .font(.subheadline)
+                            .foregroundColor(.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else if let errorMessage = leaderboardManager.errorMessage {
+                    // Error state
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundColor(.primaryRed)
+                        
+                        Text("Failed to load leaderboard")
+                            .font(.headline)
+                            .foregroundColor(.textPrimary)
+                        
+                        Text(errorMessage)
+                            .font(.subheadline)
+                            .foregroundColor(.textSecondary)
+                            .multilineTextAlignment(.center)
+                        
+                        Button("Retry") {
+                            Task {
+                                await leaderboardManager.refreshLeaderboard()
+                            }
                         }
-                        
-                        Spacer()
-                        
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("\(authManager.currentUser?.totalPoints ?? 0)")
+                        .foregroundColor(.primaryBlue)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.primaryBlue, lineWidth: 1)
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    // Your Rank - Enhanced Luxury Design
+                    VStack(spacing: 16) {
+                        HStack {
+                            Text("Your Performance")
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .foregroundColor(.textPrimary)
                             
-                            Text("points")
-                                .font(.subheadline)
-                                .foregroundColor(.textSecondary)
+                            Spacer()
+                            
+                            // Performance badge
+                            HStack(spacing: 4) {
+                                Image(systemName: "crown.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.yellow)
+                                Text("Champion")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.yellow)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(Color.yellow.opacity(0.1))
+                            )
+                        }
+                        
+                        ZStack {
+                            // Gradient background
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.primaryBlue.opacity(0.1),
+                                    Color.primaryBlue.opacity(0.05)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            
+                            // Main content
+                            VStack(spacing: 20) {
+                                // Rank section
+                                HStack(spacing: 20) {
+                                    // Rank badge with glow effect
+                                    ZStack {
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [
+                                                        Color.primaryBlue,
+                                                        Color.primaryBlue.opacity(0.8)
+                                                    ]),
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 80, height: 80)
+                                            .shadow(color: Color.primaryBlue.opacity(0.3), radius: 12, x: 0, y: 6)
+                                        
+                                        VStack(spacing: 2) {
+                                            Text("#\(leaderboardManager.currentUserRank)")
+                                                .font(.system(size: 24, weight: .black))
+                                                .foregroundColor(.white)
+                                            
+                                            Text("RANK")
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundColor(.white.opacity(0.8))
+                                        }
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Out of \(leaderboardManager.totalPlayers) players")
+                                            .font(.subheadline)
+                                            .foregroundColor(.textSecondary)
+                                        
+                                        Text("Keep pushing forward!")
+                                            .font(.caption)
+                                            .foregroundColor(.textSecondary)
+                                    }
+                                    
+                                    Spacer()
+                                }
+                                
+                                // Stats row
+                                HStack(spacing: 30) {
+                                    // Points
+                                    VStack(spacing: 4) {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "star.fill")
+                                                .font(.title3)
+                                                .foregroundColor(.yellow)
+                                            
+                                            Text("\(authManager.currentUser?.totalPoints ?? 0)")
+                                                .font(.system(size: 28, weight: .black))
+                                                .foregroundColor(.textPrimary)
+                                        }
+                                        
+                                        Text("Total Points")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.textSecondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    // Level
+                                    VStack(spacing: 4) {
+                                        Text("Level")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.textSecondary)
+                                        
+                                        Text("\(authManager.currentUser?.level ?? 1)")
+                                            .font(.system(size: 28, weight: .black))
+                                            .foregroundColor(.textPrimary)
+                                    }
+                                }
+                            }
+                            .padding(24)
                         }
                     }
-                    .padding(20)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.cardBackground)
-                            .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-                    )
-                }
-                .padding(.horizontal, 20)
-                
-                // Top Players
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Top Players")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.textPrimary)
-                        .padding(.horizontal, 20)
+                    .padding(.horizontal, 20)
                     
-                    ForEach(sampleLeaderboard, id: \.id) { player in
-                        LeaderboardRowView(player: player, rank: sampleLeaderboard.firstIndex(where: { $0.id == player.id })! + 1, completedDays: 0)
+                    // Top Players - Enhanced Design
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            HStack(spacing: 8) {
+                                Image(systemName: "trophy.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.yellow)
+                                
+                                Text("Hall of Fame")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.textPrimary)
+                            }
+                            
+                            Spacer()
+                            
+//                            Button(action: {
+//                                Task {
+//                                    await leaderboardManager.refreshLeaderboard()
+//                                }
+//                            })
+//                                {
+//                                HStack(spacing: 4) {
+//                                    Image(systemName: "arrow.clockwise")
+//                                        .font(.caption)
+//                                    Text("Siu")
+//                                        .font(.caption)
+//                                        .fontWeight(.medium)
+//                                }
+//                                .foregroundColor(.primaryBlue)
+//                                .padding(.horizontal, 12)
+//                                .padding(.vertical, 6)
+//                                .background(
+//                                    Capsule()
+//                                        .fill(Color.primaryBlue.opacity(0.1))
+//                                )
+//                            }
+                        }
+                        .padding(.horizontal, 20)
+                        
+                        if leaderboardManager.topUsers.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "trophy")
+                                    .font(.largeTitle)
+                                    .foregroundColor(.textSecondary)
+                                
+                                Text("No players yet")
+                                    .font(.headline)
+                                    .foregroundColor(.textPrimary)
+                                
+                                Text("Be the first to complete a challenge!")
+                                    .font(.subheadline)
+                                    .foregroundColor(.textSecondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 40)
+                        } else {
+                            ForEach(Array(leaderboardManager.topUsers.enumerated()), id: \.element.id) { index, player in
+                                LeaderboardRowView(
+                                    player: player, 
+                                    rank: index + 1, 
+                                    completedDays: 0 // We can add completed days calculation later
+                                )
+                            }
+                        }
                     }
+                    .padding(.bottom, 20)
                 }
-                .padding(.bottom, 20)
             }
+        }
+        .refreshable {
+            await leaderboardManager.refreshLeaderboard()
         }
     }
     
@@ -336,13 +629,6 @@ struct ChallengesView: View {
         ]
     }
     
-    private var sampleLeaderboard: [User] {
-        [
-            User(id: "1", email: "user1@example.com", username: "HabitMaster", displayName: "Alex Johnson"),
-            User(id: "2", email: "user2@example.com", username: "StreakKing", displayName: "Sarah Chen"),
-            User(id: "3", email: "user3@example.com", username: "GoalCrusher", displayName: "Mike Davis")
-        ]
-    }
 }
 
 // MARK: - Challenge Card View
@@ -359,6 +645,13 @@ struct ChallengeCardView: View {
     @State private var celebrationMessage = ""
     @State private var celebrationPoints = 0
     
+    // Parent view state bindings for alerts
+    @Binding var showingCompletionAlert: Bool
+    @Binding var completionMessage: String
+    @Binding var completionPoints: Int
+    @Binding var showingJoinSuccessAlert: Bool
+    @Binding var joinSuccessMessage: String
+    
     // Cache progress locally for better performance
     private var progress: ChallengeProgress? {
         challengeManager.challengeProgress[challenge.id]
@@ -367,15 +660,48 @@ struct ChallengeCardView: View {
     // Check if user has checked in today
     private var hasCheckedInToday: Bool {
         guard let progress = progress else { return false }
-        // This would need to check daily status - for now, assume if progress > 0
+        
+        // For completed challenges, don't show check-in status
+        if progress.status == .completed {
+            return false
+        }
+        
+        // For ended challenges, don't show check-in status
+        if challenge.endDate <= Date() {
+            return false
+        }
+        
+        // This would ideally check the actual daily status, but for now use progress > 0
+        // In a real implementation, you'd check the daily status for today specifically
         return progress.currentValue > 0
+    }
+    
+    // Check if this is a completed challenge
+    private var isCompletedChallenge: Bool {
+        guard let progress = progress else { return false }
+        return progress.status == .completed
     }
     
     // Check if user can undo today's check-in (same day only)
     private var canUndoToday: Bool {
-        // For now, allow undo if they checked in today
-        // In a real implementation, you'd check the daily status date
-        return hasCheckedInToday
+        // Only allow undo if:
+        // 1. They checked in today
+        // 2. The challenge is still active (not completed)
+        // 3. The challenge hasn't ended
+        guard hasCheckedInToday else { return false }
+        guard let progress = progress else { return false }
+        
+        // Don't allow undo for completed challenges
+        if progress.status == .completed {
+            return false
+        }
+        
+        // Don't allow undo if challenge has ended
+        if challenge.endDate <= Date() {
+            return false
+        }
+        
+        return true
     }
     
     // Time remaining
@@ -441,8 +767,9 @@ struct ChallengeCardView: View {
                     )
                     .foregroundColor(.primaryBlue)
                 
-                // Target
-                Text("\(challenge.targetValue) \(challenge.targetUnit)")
+                // Duration
+                let duration = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
+                Text("\(duration) days")
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundColor(.textSecondary)
@@ -485,7 +812,8 @@ struct ChallengeCardView: View {
                         .frame(width: 40, height: 40)
                     
                     let currentProgress = progress?.currentValue ?? 0
-                    let progressPercentage = challenge.targetValue > 0 ? Double(currentProgress) / Double(challenge.targetValue) : 0.0
+                    let challengeDuration = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 1
+                    let progressPercentage = challengeDuration > 0 ? Double(currentProgress) / Double(challengeDuration) : 0.0
                     
                     Circle()
                         .trim(from: 0, to: min(progressPercentage, 1.0))
@@ -507,7 +835,8 @@ struct ChallengeCardView: View {
                         .font(.caption)
                         .foregroundColor(.textSecondary)
                     
-                    Text("\(challenge.targetValue) \(challenge.targetUnit)")
+                    let duration = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
+                    Text("\(duration) days")
                         .font(.caption2)
                         .foregroundColor(.textSecondary)
                 }
@@ -548,7 +877,7 @@ struct ChallengeCardView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     
-                    if !hasCheckedInToday {
+                    if !hasCheckedInToday && !isCompletedChallenge {
                         Button(action: { 
                             Task {
                                 await performQuickCheckIn()
@@ -623,6 +952,14 @@ struct ChallengeCardView: View {
                                 // Haptic feedback
                                 let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                                 impactFeedback.impactOccurred()
+                                
+                                // Show success alert for joining
+                                if progress == nil {
+                                    await MainActor.run {
+                                        self.joinSuccessMessage = "Successfully joined '\(challenge.title)'! It's now added to My Challenges tab."
+                                        self.showingJoinSuccessAlert = true
+                                    }
+                                }
                             }
                             isJoining = false
                         }
@@ -682,9 +1019,19 @@ struct ChallengeCardView: View {
                     Color.black.opacity(0.3)
                         .ignoresSafeArea()
                         .zIndex(999)
+                        .onTapGesture {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                showCelebration = false
+                            }
+                        }
                     
                     CelebrationView(message: celebrationMessage, points: celebrationPoints)
                         .zIndex(1000)
+                        .onTapGesture {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                showCelebration = false
+                            }
+                        }
                 }
             }
         )
@@ -698,11 +1045,10 @@ struct ChallengeCardView: View {
         // Update daily status to completed
         let statusSaved = await challengeManager.updateDailyStatus(challenge.id, status: .completed)
         
-        // Update challenge progress
-        let currentValue = progress?.currentValue ?? 0
-        let progressSaved = await challengeManager.updateChallengeProgress(challenge.id, newValue: currentValue + 1)
+        // Update challenge progress (will automatically calculate correct value from daily statuses)
+        let progressSaved = await challengeManager.updateChallengeProgress(challenge.id, newValue: 0)
         
-        // Add activity entry
+        // Add activity entry (will check for duplicates)
         let activitySaved = await challengeManager.addChallengeActivity(
             challengeId: challenge.id,
             action: "completed"
@@ -729,18 +1075,14 @@ struct ChallengeCardView: View {
         // Update daily status to not started
         let statusSaved = await challengeManager.updateDailyStatus(challenge.id, status: .notStarted)
         
-        // Update challenge progress (decrease by 1)
-        let currentValue = progress?.currentValue ?? 0
-        let progressSaved = await challengeManager.updateChallengeProgress(challenge.id, newValue: max(0, currentValue - 1))
+        // Update challenge progress (will automatically recalculate from daily statuses)
+        let progressSaved = await challengeManager.updateChallengeProgress(challenge.id, newValue: 0)
         
-        // Add activity entry for undo
-        let activitySaved = await challengeManager.addChallengeActivity(
-            challengeId: challenge.id,
-            action: "undid_checkin"
-        )
+        // Note: We don't add an activity for undo to avoid cluttering the feed
+        // The daily status change is sufficient to track the undo
         
         await MainActor.run {
-            if statusSaved && progressSaved && activitySaved {
+            if statusSaved && progressSaved {
                 // Haptic feedback
                 let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                 impactFeedback.impactOccurred()
@@ -752,14 +1094,27 @@ struct ChallengeCardView: View {
     private func checkForMilestones() {
         guard let progress = progress else { return }
         
-        let newValue = progress.currentValue + 1
-        let targetValue = challenge.targetValue
+        let newValue = progress.currentValue
+        let duration = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
         
-        // Check for completion milestone
-        if newValue >= targetValue {
-            celebrationMessage = "Challenge Completed! 🎉"
-            celebrationPoints = challenge.pointsReward
-            showCelebration = true
+        // Check for completion milestone (completed all days)
+        if newValue >= duration {
+            // Complete the challenge with celebration
+            Task {
+                let (success, message, points) = await challengeManager.completeChallengeWithCelebration(challenge)
+                if success {
+                    await MainActor.run {
+                        celebrationMessage = message
+                        celebrationPoints = points
+                        showCelebration = true
+                        
+                        // Also show the completion alert
+                        self.completionMessage = message
+                        self.completionPoints = points
+                        self.showingCompletionAlert = true
+                    }
+                }
+            }
         }
         // Check for streak milestones (every 3 days)
         else if newValue % 3 == 0 && newValue > 0 {
@@ -768,7 +1123,7 @@ struct ChallengeCardView: View {
             showCelebration = true
         }
         // Check for halfway point
-        else if newValue == targetValue / 2 {
+        else if newValue == duration / 2 {
             celebrationMessage = "Halfway There! 💪"
             celebrationPoints = 5
             showCelebration = true
@@ -783,7 +1138,9 @@ struct ChallengeCardView: View {
         // Hide celebration after 2 seconds
         if showCelebration {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                showCelebration = false
+                withAnimation(.easeOut(duration: 0.3)) {
+                    showCelebration = false
+                }
             }
         }
     }
@@ -911,23 +1268,34 @@ struct ChallengePreviewView: View {
 
 // MARK: - Category Chip View
 struct CategoryChipView: View {
-    let type: ChallengeType
+    let type: ChallengeType?
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    init(type: ChallengeType?, isSelected: Bool = false, onTap: @escaping () -> Void = {}) {
+        self.type = type
+        self.isSelected = isSelected
+        self.onTap = onTap
+    }
     
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: type.icon)
-                .font(.caption)
-            Text(type.displayName)
-                .font(.caption)
-                .fontWeight(.medium)
+        Button(action: onTap) {
+            HStack(spacing: 6) {
+                Image(systemName: type?.icon ?? "list.bullet")
+                    .font(.caption)
+                Text(type?.displayName ?? "All")
+                    .font(.caption)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(isSelected ? .white : .primaryBlue)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(isSelected ? Color.primaryBlue : Color.primaryBlue.opacity(0.1))
+            )
         }
-        .foregroundColor(.primaryBlue)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            Capsule()
-                .fill(Color.primaryBlue.opacity(0.1))
-        )
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -1020,6 +1388,12 @@ struct ChallengeCardSkeleton: View {
 // MARK: - Empty States
 struct EmptyChallengesView: View {
     let isMyChallenges: Bool
+    let onCreateChallenge: (() -> Void)?
+    
+    init(isMyChallenges: Bool, onCreateChallenge: (() -> Void)? = nil) {
+        self.isMyChallenges = isMyChallenges
+        self.onCreateChallenge = onCreateChallenge
+    }
     
     var body: some View {
         VStack(spacing: 20) {
@@ -1041,7 +1415,9 @@ struct EmptyChallengesView: View {
             }
             
             if isMyChallenges {
-                Button(action: {}) {
+                Button(action: { 
+                    onCreateChallenge?()
+                }) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus.circle.fill")
                         Text("Create Challenge")
@@ -1132,7 +1508,7 @@ struct CelebrationView: View {
             
             // Hide after 2 seconds
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                withAnimation {
+                withAnimation(.easeOut(duration: 0.3)) {
                     isAnimating = false
                 }
             }
@@ -1140,76 +1516,427 @@ struct CelebrationView: View {
     }
 }
 
-// MARK: - Leaderboard Row View
+// MARK: - Enhanced Leaderboard Row View
 struct LeaderboardRowView: View {
     let player: User
     let rank: Int
     let completedDays: Int
+    @EnvironmentObject var authManager: AuthManager
+    
+    private var isCurrentUser: Bool {
+        player.id == authManager.currentUser?.id
+    }
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Rank
+        HStack(spacing: 16) {
+            // Rank number (simple text)
             Text("#\(rank)")
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(rankColor)
-                .frame(width: 30, alignment: .leading)
+                .font(.system(size: 18, weight: .black))
+                .foregroundColor(rankTextColor)
+                .frame(width: 35, alignment: .leading)
             
-            // Player Info
+            // Player Info with enhanced styling
             HStack(spacing: 12) {
-                // Avatar
-                Circle()
-                    .fill(Color.primaryBlue.opacity(0.2))
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Text(String(player.displayName.prefix(1)))
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(.primaryBlue)
-                    )
+                // Enhanced Avatar with glow for current user
+                ZStack {
+                    Circle()
+                        .fill(isCurrentUser ? 
+                              LinearGradient(
+                                gradient: Gradient(colors: [Color.primaryBlue, Color.primaryBlue.opacity(0.8)]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                              ) :
+                              LinearGradient(
+                                gradient: Gradient(colors: [Color.primaryBlue.opacity(0.2), Color.primaryBlue.opacity(0.1)]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                              )
+                        )
+                        .frame(width: 48, height: 48)
+                        .shadow(color: isCurrentUser ? Color.primaryBlue.opacity(0.3) : .clear, radius: 8, x: 0, y: 4)
+                    
+                    Text(String(player.displayName.prefix(1)))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(isCurrentUser ? .white : .primaryBlue)
+                }
                 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(player.displayName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.textPrimary)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(player.displayName)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(playerTextColor)
+                            .lineLimit(1)
+                        
+                        if isCurrentUser {
+                            HStack(spacing: 4) {
+                                Image(systemName: "crown.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.yellow)
+                                Text("You")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.yellow)
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(Color.yellow.opacity(0.15))
+                            )
+                        }
+                    }
                     
                     Text("@\(player.username)")
                         .font(.caption)
-                        .foregroundColor(.textSecondary)
+                        .foregroundColor(usernameTextColor)
+                        .lineLimit(1)
                 }
             }
             
             Spacer()
             
-            // Completed Days
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(completedDays)")
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.textPrimary)
+            // Enhanced Points Display
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "star.fill")
+                        .font(.title3)
+                        .foregroundColor(.yellow)
+                    
+                    Text("\(player.totalPoints)")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(playerTextColor)
+                }
                 
-                Text("days")
+                Text("points")
                     .font(.caption)
-                    .foregroundColor(.textSecondary)
+                    .fontWeight(.medium)
+                    .foregroundColor(usernameTextColor)
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.vertical, 16)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 1)
+            ZStack {
+                // Podium background gradients for top 3
+                if rank <= 3 {
+                    LinearGradient(
+                        gradient: podiumGradient,
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    
+                    // Luxurious border for podium positions
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                gradient: podiumBorderGradient,
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 2
+                        )
+                } else if isCurrentUser {
+                    // Current user styling (if not in top 3)
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.primaryBlue.opacity(0.08),
+                            Color.primaryBlue.opacity(0.04)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.primaryBlue.opacity(0.3),
+                                    Color.primaryBlue.opacity(0.1)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                } else {
+                    // Regular background
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.cardBackground)
+                }
+                
+                // Enhanced shadow based on position
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.clear)
+                    .shadow(
+                        color: shadowColor,
+                        radius: shadowRadius,
+                        x: 0,
+                        y: shadowY
+                    )
+            }
         )
     }
     
-    private var rankColor: Color {
+    // MARK: - Podium Styling
+    private var podiumGradient: Gradient {
         switch rank {
-        case 1: return .yellow
-        case 2: return .gray
-        case 3: return .orange
+        case 1: // Gold
+            return Gradient(colors: [
+                Color.yellow.opacity(0.15),
+                Color.yellow.opacity(0.08),
+                Color.yellow.opacity(0.05)
+            ])
+        case 2: // Silver
+            return Gradient(colors: [
+                Color.gray.opacity(0.15),
+                Color.gray.opacity(0.08),
+                Color.gray.opacity(0.05)
+            ])
+        case 3: // Bronze
+            return Gradient(colors: [
+                Color.orange.opacity(0.15),
+                Color.orange.opacity(0.08),
+                Color.orange.opacity(0.05)
+            ])
+        default:
+            return Gradient(colors: [Color.clear])
+        }
+    }
+    
+    private var podiumBorderGradient: Gradient {
+        switch rank {
+        case 1: // Gold border
+            return Gradient(colors: [
+                Color.yellow.opacity(0.4),
+                Color.yellow.opacity(0.2),
+                Color.yellow.opacity(0.1)
+            ])
+        case 2: // Silver border
+            return Gradient(colors: [
+                Color.gray.opacity(0.4),
+                Color.gray.opacity(0.2),
+                Color.gray.opacity(0.1)
+            ])
+        case 3: // Bronze border
+            return Gradient(colors: [
+                Color.orange.opacity(0.4),
+                Color.orange.opacity(0.2),
+                Color.orange.opacity(0.1)
+            ])
+        default:
+            return Gradient(colors: [Color.clear])
+        }
+    }
+    
+    private var rankTextColor: Color {
+        switch rank {
+        case 1: return Color.yellow
+        case 2: return Color.gray
+        case 3: return Color.orange
         default: return .textSecondary
         }
+    }
+    
+    private var playerTextColor: Color {
+        if rank <= 3 {
+            return .white
+        } else {
+            return .textPrimary
+        }
+    }
+    
+    private var usernameTextColor: Color {
+        if rank <= 3 {
+            return .white.opacity(0.8)
+        } else {
+            return .textSecondary
+        }
+    }
+    
+    private var shadowColor: Color {
+        switch rank {
+        case 1: return Color.yellow.opacity(0.2)
+        case 2: return Color.gray.opacity(0.2)
+        case 3: return Color.orange.opacity(0.2)
+        default: return isCurrentUser ? Color.primaryBlue.opacity(0.1) : Color.black.opacity(0.05)
+        }
+    }
+    
+    private var shadowRadius: CGFloat {
+        switch rank {
+        case 1: return 15
+        case 2: return 12
+        case 3: return 10
+        default: return isCurrentUser ? 12 : 6
+        }
+    }
+    
+    private var shadowY: CGFloat {
+        switch rank {
+        case 1: return 8
+        case 2: return 6
+        case 3: return 5
+        default: return isCurrentUser ? 6 : 3
+        }
+    }
+}
+
+// MARK: - All Challenges View
+struct AllChallengesView: View {
+    let selectedCategory: ChallengeType?
+    @EnvironmentObject var challengeManager: ChallengeManager
+    @Environment(\.dismiss) private var dismiss
+    @Binding var showingCompletionAlert: Bool
+    @Binding var completionMessage: String
+    @Binding var completionPoints: Int
+    @Binding var showingJoinSuccessAlert: Bool
+    @Binding var joinSuccessMessage: String
+    @State private var searchText = ""
+    @State private var sortOption: SortOption = .popularity
+    
+    enum SortOption: String, CaseIterable {
+        case popularity = "Popularity"
+        case newest = "Newest"
+        case endingSoon = "Ending Soon"
+        case points = "Points"
+        
+        var displayName: String {
+            return self.rawValue
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Search and Sort Bar
+                VStack(spacing: 12) {
+                    // Search Bar
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.textSecondary)
+                        
+                        TextField("Search challenges...", text: $searchText)
+                            .textFieldStyle(PlainTextFieldStyle())
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.cardBackground)
+                    )
+                    
+                    // Sort Options
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(SortOption.allCases, id: \.self) { option in
+                                Button(action: { sortOption = option }) {
+                                    Text(option.displayName)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(sortOption == option ? .white : .primaryBlue)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            Capsule()
+                                                .fill(sortOption == option ? Color.primaryBlue : Color.primaryBlue.opacity(0.1))
+                                        )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                
+                // Challenges List
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        if filteredChallenges.isEmpty {
+                            emptyStateView
+                        } else {
+                            ForEach(filteredChallenges, id: \.id) { challenge in
+                                ChallengeCardView(
+                                    challenge: challenge,
+                                    isMyChallenge: false,
+                                    showingCompletionAlert: $showingCompletionAlert,
+                                    completionMessage: $completionMessage,
+                                    completionPoints: $completionPoints,
+                                    showingJoinSuccessAlert: $showingJoinSuccessAlert,
+                                    joinSuccessMessage: $joinSuccessMessage
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
+                }
+            }
+            .navigationTitle(selectedCategory?.displayName ?? "All Challenges")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private var filteredChallenges: [Challenge] {
+        var challenges = challengeManager.availablePublicChallenges
+        
+        // Filter by category
+        if let selectedCategory = selectedCategory {
+            challenges = challenges.filter { $0.type == selectedCategory }
+        }
+        
+        // Filter by search text
+        if !searchText.isEmpty {
+            challenges = challenges.filter { challenge in
+                challenge.title.localizedCaseInsensitiveContains(searchText) ||
+                challenge.description.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+        
+        // Sort challenges
+        switch sortOption {
+        case .popularity:
+            challenges.sort { $0.memberCount > $1.memberCount }
+        case .newest:
+            challenges.sort { $0.createdAt > $1.createdAt }
+        case .endingSoon:
+            challenges.sort { $0.endDate < $1.endDate }
+        case .points:
+            challenges.sort { $0.pointsReward > $1.pointsReward }
+        }
+        
+        return challenges
+    }
+    
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 60))
+                .foregroundColor(.gray.opacity(0.5))
+            
+            VStack(spacing: 8) {
+                Text("No challenges found")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.textPrimary)
+                
+                Text("Try adjusting your search or browse different categories")
+                    .font(.body)
+                    .foregroundColor(.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.vertical, 60)
     }
 }
 

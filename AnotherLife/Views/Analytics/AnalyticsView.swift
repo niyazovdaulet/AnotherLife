@@ -47,7 +47,7 @@ struct AnalyticsView: View {
                     overallProgressView
                     
                     // Habits Performance
-                    habitsPerformanceView
+//                    habitsPerformanceView
                     
                     // Completion Rate Over Time
                     completionRateChart
@@ -56,7 +56,7 @@ struct AnalyticsView: View {
                     habitStreakGraphsView
                     
                     // Correlation Analysis
-                    correlationAnalysisView
+//                    correlationAnalysisView
                     
                     // Weekly Report Button
                     weeklyReportButton
@@ -74,34 +74,50 @@ struct AnalyticsView: View {
     
     // MARK: - Time Range Selector
     private var timeRangeSelector: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Time Range")
                 .font(.headline)
+                .fontWeight(.semibold)
                 .foregroundColor(.textPrimary)
             
-            HStack(spacing: 12) {
-                ForEach(TimeRange.allCases, id: \.self) { range in
-                    Button(action: { selectedTimeRange = range }) {
-                        Text(range.displayName)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(selectedTimeRange == range ? .white : .textPrimary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(selectedTimeRange == range ? Color.primaryBlue : Color.backgroundGray)
-                            )
-                    }
-                    .buttonStyle(PlainButtonStyle())
+            // Improved segmented control style selector
+            VStack(spacing: 8) {
+                // First row: Week and Month
+                HStack(spacing: 8) {
+                    TimeRangeButton(
+                        range: .week,
+                        isSelected: selectedTimeRange == .week,
+                        action: { selectedTimeRange = .week }
+                    )
+                    
+                    TimeRangeButton(
+                        range: .month,
+                        isSelected: selectedTimeRange == .month,
+                        action: { selectedTimeRange = .month }
+                    )
+                }
+                
+                // Second row: 3 Months and Year
+                HStack(spacing: 8) {
+                    TimeRangeButton(
+                        range: .threeMonths,
+                        isSelected: selectedTimeRange == .threeMonths,
+                        action: { selectedTimeRange = .threeMonths }
+                    )
+                    
+                    TimeRangeButton(
+                        range: .year,
+                        isSelected: selectedTimeRange == .year,
+                        action: { selectedTimeRange = .year }
+                    )
                 }
             }
         }
-        .padding(16)
+        .padding(20)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 16)
                 .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         )
     }
     
@@ -547,6 +563,41 @@ struct AnalyticsView: View {
         let denominator = sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY))
         
         return denominator == 0 ? 0.0 : numerator / denominator
+    }
+}
+
+// MARK: - Time Range Button
+struct TimeRangeButton: View {
+    let range: AnalyticsView.TimeRange
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(range.displayName)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(isSelected ? .white : .textPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color.primaryBlue : Color.backgroundGray)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(
+                                isSelected ? Color.primaryBlue.opacity(0.3) : Color.clear,
+                                lineWidth: 1
+                            )
+                    )
+            )
+            .scaleEffect(isSelected ? 1.02 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: isSelected)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

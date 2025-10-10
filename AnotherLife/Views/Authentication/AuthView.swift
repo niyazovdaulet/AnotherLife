@@ -17,6 +17,11 @@ struct AuthView: View {
     @State private var displayName = ""
     @State private var confirmPassword = ""
     @State private var isSignUpMode = false
+    @State private var showCustomError = false
+    @State private var customErrorTitle = ""
+    @State private var customErrorMessage = ""
+    @State private var showForgotPassword = false
+    @State private var isButtonPressed = false
     
     var body: some View {
         NavigationView {
@@ -53,9 +58,24 @@ struct AuthView: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 40)
                 }
+                
+                // Loading Overlay
+                if authManager.isLoading {
+                    loadingOverlay
+                }
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
+        .sheet(isPresented: $showCustomError) {
+            CustomErrorView(
+                title: customErrorTitle,
+                message: customErrorMessage,
+                showForgotPassword: showForgotPassword,
+                onDismiss: { showCustomError = false },
+                onForgotPassword: { handleForgotPassword() }
+            )
+            .presentationDetents([.height(300)])
+        }
     }
     
     // MARK: - Header View
@@ -180,8 +200,25 @@ struct AuthView: View {
                     )
             }
             
-            // Auth Button
-            Button(action: handleAuthAction) {
+            // Auth Button with Haptic Feedback
+            Button(action: {
+                // Haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                impactFeedback.impactOccurred()
+                
+                // Button press animation
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                    isButtonPressed = true
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        isButtonPressed = false
+                    }
+                }
+                
+                handleAuthAction()
+            }) {
                 HStack {
                     if authManager.isLoading {
                         ProgressView()
@@ -208,6 +245,7 @@ struct AuthView: View {
                 )
                 .shadow(color: .primaryBlue.opacity(0.3), radius: 8, x: 0, y: 4)
             }
+            .scaleEffect(isButtonPressed ? 0.95 : 1.0)
             .disabled(authManager.isLoading || !isFormValid)
             .opacity(isFormValid ? 1.0 : 0.6)
         }
@@ -282,6 +320,38 @@ struct AuthView: View {
         }
     }
     
+    // MARK: - Loading Overlay
+    private var loadingOverlay: some View {
+        ZStack {
+            // Dim background
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+            
+            // Loading card
+            VStack(spacing: 20) {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .primaryBlue))
+                    .scaleEffect(1.5)
+                
+                Text(isSignUpMode ? "Creating your account..." : "Signing you in...")
+                    .font(.headline)
+                    .foregroundColor(.textPrimary)
+                
+                Text("Please wait")
+                    .font(.subheadline)
+                    .foregroundColor(.textSecondary)
+            }
+            .padding(40)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.cardBackground)
+                    .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
+            )
+        }
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.3), value: authManager.isLoading)
+    }
+    
     // MARK: - Actions
     private func handleAuthAction() {
         Task {
@@ -298,6 +368,14 @@ struct AuthView: View {
                     password: password
                 )
             }
+            
+            // Check for errors and show custom alert
+            if let errorMessage = authManager.errorMessage {
+                customErrorTitle = isSignUpMode ? "Sign Up Failed" : "Sign In Failed"
+                customErrorMessage = getCustomErrorMessage(errorMessage)
+                showForgotPassword = !isSignUpMode && errorMessage.contains("password")
+                showCustomError = true
+            }
         }
     }
     
@@ -309,6 +387,26 @@ struct AuthView: View {
             print("Apple Sign-In successful")
         case .failure(let error):
             authManager.errorMessage = error.localizedDescription
+        }
+    }
+    
+    private func handleForgotPassword() {
+        // Implement password reset functionality
+        print("Forgot password for: \(email)")
+        // You can add Firebase password reset here
+    }
+    
+    private func getCustomErrorMessage(_ errorMessage: String) -> String {
+        if errorMessage.contains("password") || errorMessage.contains("INVALID_LOGIN_CREDENTIALS") {
+            return "Incorrect password. Please try again or reset it below."
+        } else if errorMessage.contains("email") {
+            return "Invalid email address. Please check and try again."
+        } else if errorMessage.contains("network") {
+            return "Network error. Please check your connection and try again."
+        } else if errorMessage.contains("user-not-found") {
+            return "No account found with this email. Please sign up first."
+        } else {
+            return errorMessage
         }
     }
 }
@@ -327,6 +425,79 @@ struct AuthTextFieldStyle: TextFieldStyle {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(Color.textSecondary.opacity(0.2), lineWidth: 1)
             )
+    }
+}
+
+// MARK: - Custom Error View
+struct CustomErrorView: View {
+    let title: String
+    let message: String
+    let showForgotPassword: Bool
+    let onDismiss: () -> Void
+    let onForgotPassword: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            // Error Icon
+            ZStack {
+                Circle()
+                    .fill(Color.primaryRed.opacity(0.1))
+                    .frame(width: 60, height: 60)
+                
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.primaryRed)
+            }
+            
+            // Error Message
+            VStack(spacing: 12) {
+                Text(title)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.textPrimary)
+                
+                Text(message)
+                    .font(.body)
+                    .foregroundColor(.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+            
+            // Actions
+            VStack(spacing: 12) {
+                if showForgotPassword {
+                    Button(action: {
+                        onForgotPassword()
+                        onDismiss()
+                    }) {
+                        Text("Forgot Password?")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.primaryBlue)
+                            )
+                    }
+                }
+                
+                Button(action: onDismiss) {
+                    Text(showForgotPassword ? "Try Again" : "OK")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(showForgotPassword ? .primaryBlue : .white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(showForgotPassword ? Color.primaryBlue.opacity(0.1) : Color.primaryBlue)
+                        )
+                }
+            }
+        }
+        .padding(24)
     }
 }
 

@@ -48,6 +48,7 @@ class ChallengeManager: ObservableObject {
         }
     }
     
+    
     // MARK: - Challenge Creation
     
     func createChallenge(
@@ -445,7 +446,7 @@ class ChallengeManager: ObservableObject {
                 let calendar = Calendar.current
                 let duration = calendar.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
                 if completedDaysCount >= duration {
-                    await completeChallenge(challenge)
+                    await completeChallengeWithCelebration(challenge)
                 }
             }
 
@@ -1597,12 +1598,16 @@ class ChallengeManager: ObservableObject {
         
         // Add completed challenges created by user
         challenges.append(contentsOf: myChallenges.filter { challenge in
-            challengeProgress[challenge.id]?.status == .completed
+            let hasEnded = challenge.endDate <= Date()
+            let isCompleted = challengeProgress[challenge.id]?.status == .completed
+            return isCompleted || hasEnded
         })
         
         // Add completed challenges joined by user (but not created by them)
         challenges.append(contentsOf: joinedChallenges.filter { challenge in
-            challengeProgress[challenge.id]?.status == .completed &&
+            let hasEnded = challenge.endDate <= Date()
+            let isCompleted = challengeProgress[challenge.id]?.status == .completed
+            return (isCompleted || hasEnded) &&
             !myChallenges.contains { $0.id == challenge.id }
         })
         

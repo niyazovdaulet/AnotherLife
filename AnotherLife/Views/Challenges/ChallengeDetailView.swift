@@ -97,7 +97,7 @@ struct ChallengeDetailView: View {
                     primaryActionView
                     
                     // Progress Section
-                    progressSectionView
+//                    progressSectionView
                     
                     // Streak Section
                     streakSectionView
@@ -161,12 +161,16 @@ struct ChallengeDetailView: View {
         }
         .alert("Challenge Completed! 🎉", isPresented: $showingCompletionAlert) {
             Button("Awesome!") {
+                print("🚨 Alert dismissed by user")
                 showingCompletionAlert = false
                 // Dismiss the detail view to return to challenges list
                 dismiss()
             }
         } message: {
             Text(completionAlertMessage)
+        }
+        .onChange(of: showingCompletionAlert) { isShowing in
+            print("🚨 Alert state changed - showingCompletionAlert: \(isShowing)")
         }
         .overlay(
             // Celebration overlay
@@ -331,7 +335,7 @@ struct ChallengeDetailView: View {
                                 .padding(.horizontal, 16)
                         }
                     } else if isProgressSaved {
-                        // Show saved status and edit button
+                        // Show saved status and edit button (only if challenge is not completed)
                         VStack(spacing: 12) {
                             HStack(spacing: 8) {
                                 Image(systemName: todayStatus == .completed ? "checkmark.circle.fill" : "minus.circle.fill")
@@ -345,43 +349,76 @@ struct ChallengeDetailView: View {
                                 
                                 Spacer()
                                 
-                                HStack(spacing: 4) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.caption)
-                                    Text("Saved")
-                                        .font(.caption)
-                                        .fontWeight(.medium)
+                                if progress?.status == .completed {
+                                    // Challenge is completed - show completion badge
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "trophy.fill")
+                                            .font(.caption)
+                                        Text("Completed")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                    }
+                                    .foregroundColor(.yellow)
+                                } else {
+                                    // Regular saved status
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.caption)
+                                        Text("Saved")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                    }
+                                    .foregroundColor(.primaryGreen)
                                 }
-                                .foregroundColor(.primaryGreen)
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
                                     .fill(Color.cardBackground)
-                                    .stroke(Color.primaryGreen, lineWidth: 1)
+                                    .stroke(progress?.status == .completed ? Color.yellow : Color.primaryGreen, lineWidth: 1)
                             )
                             
-                            Button(action: { 
-                                isProgressSaved = false
-                                todayStatus = .notStarted
-                            }) {
+                            // Only show edit button if challenge is not completed
+                            if progress?.status != .completed {
+                                Button(action: { 
+                                    isProgressSaved = false
+                                    todayStatus = .notStarted
+                                }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "pencil")
+                                            .font(.title3)
+                                        Text("Edit")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .foregroundColor(.primaryBlue)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color.primaryBlue.opacity(0.1))
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            } else {
+                                // Challenge completed - show locked state
                                 HStack(spacing: 8) {
-                                    Image(systemName: "pencil")
+                                    Image(systemName: "lock.fill")
                                         .font(.title3)
-                                    Text("Edit")
+                                        .foregroundColor(.gray)
+                                    Text("Challenge Completed")
                                         .font(.headline)
                                         .fontWeight(.semibold)
+                                        .foregroundColor(.gray)
                                 }
-                                .foregroundColor(.primaryBlue)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.primaryBlue.opacity(0.1))
+                                        .fill(Color.gray.opacity(0.1))
                                 )
                             }
-                            .buttonStyle(PlainButtonStyle())
                         }
                     } else {
                         // Show action buttons
@@ -470,56 +507,56 @@ struct ChallengeDetailView: View {
         }
     }
     
-    // MARK: - Progress Section
-    private var progressSectionView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Progress")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.textPrimary)
-            
-            VStack(spacing: 12) {
-                // Progress Bar
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("\(currentValue) / \(challengeDuration) days")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.textPrimary)
-                        
-                        Spacer()
-                        
-                        Text("\(Int(progressPercentage * 100))%")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.textSecondary)
-                    }
-                    
-                    ProgressView(value: progressPercentage, total: 1.0)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .primaryBlue))
-                        .scaleEffect(x: 1, y: 3, anchor: .center)
-                }
-                
-                // Days Left Info
-                HStack {
-                    Image(systemName: "calendar")
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
-                    
-                    Text("\(daysRemaining) days left")
-                        .font(.subheadline)
-                        .foregroundColor(.textSecondary)
-                }
-            }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.cardBackground)
-                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-            )
-        }
-    }
-    
+//    // MARK: - Progress Section
+//    private var progressSectionView: some View {
+//        VStack(alignment: .leading, spacing: 16) {
+//            Text("Progress")
+//                .font(.title2)
+//                .fontWeight(.bold)
+//                .foregroundColor(.textPrimary)
+//            
+//            VStack(spacing: 12) {
+//                // Progress Bar
+//                VStack(spacing: 8) {
+//                    HStack {
+//                        Text("\(currentValue) / \(challengeDuration) days")
+//                            .font(.headline)
+//                            .fontWeight(.semibold)
+//                            .foregroundColor(.textPrimary)
+//                        
+//                        Spacer()
+//                        
+//                        Text("\(Int(progressPercentage * 100))%")
+//                            .font(.subheadline)
+//                            .fontWeight(.medium)
+//                            .foregroundColor(.textSecondary)
+//                    }
+//                    
+//                    ProgressView(value: progressPercentage, total: 1.0)
+//                        .progressViewStyle(LinearProgressViewStyle(tint: .primaryBlue))
+//                        .scaleEffect(x: 1, y: 3, anchor: .center)
+//                }
+//                
+//                // Days Left Info
+//                HStack {
+//                    Image(systemName: "calendar")
+//                        .font(.caption)
+//                        .foregroundColor(.textSecondary)
+//                    
+//                    Text("\(daysRemaining) days left")
+//                        .font(.subheadline)
+//                        .foregroundColor(.textSecondary)
+//               }
+//            }
+//            .padding(20)
+//            .background(
+//                RoundedRectangle(cornerRadius: 16)
+//                    .fill(Color.cardBackground)
+//                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+//            )
+//        }
+//    }
+//    
     // MARK: - Streak Section
     private var streakSectionView: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -545,6 +582,16 @@ struct ChallengeDetailView: View {
                 
                 // Calendar Heatmap
                 calendarHeatmapView
+                
+                HStack {
+                    Image(systemName: "calendar")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                    
+                    Text("\(daysRemaining) days left")
+                        .font(.subheadline)
+                        .foregroundColor(.textSecondary)
+                }
             }
             .padding(20)
             .background(
@@ -834,10 +881,10 @@ struct ChallengeDetailView: View {
     // MARK: - Calendar Heatmap
     private var calendarHeatmapView: some View {
         VStack(spacing: 8) {
-            Text("Challenge Progress")
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.textSecondary)
+//            Text("Challenge Progress")
+//                .font(.subheadline)
+//                .fontWeight(.medium)
+//                .foregroundColor(.textSecondary)
             
             let totalDays = challengeDuration
             let columns = min(7, totalDays) // Max 7 columns, but fewer if challenge is shorter
@@ -952,7 +999,8 @@ struct ChallengeDetailView: View {
         )
         
         await MainActor.run {
-            if statusSaved && progressSaved && activitySaved {
+            // Progress is saved if status and progress are saved (activity is optional for completion)
+            if statusSaved && progressSaved {
                 print("✅ Progress saved successfully!")
                 isProgressSaved = true
                 
@@ -975,8 +1023,13 @@ struct ChallengeDetailView: View {
                 if todayStatus == .completed {
                     checkForMilestones()
                 }
+                
+                // Force refresh challenge data in the main view
+                Task {
+                    await challengeManager.refreshChallengeData()
+                }
             } else {
-                print("❌ Failed to save progress")
+                print("❌ Failed to save progress - statusSaved: \(statusSaved), progressSaved: \(progressSaved), activitySaved: \(activitySaved)")
             }
             isSaving = false
         }
@@ -1117,13 +1170,17 @@ struct ChallengeDetailView: View {
     }
     
     private func checkForMilestones() {
-        guard let progress = progress else { return }
+        // Get the updated progress value from the database
+        guard let updatedProgress = challengeManager.challengeProgress[challenge.id] else { return }
         
-        let newValue = currentValue
+        let newValue = updatedProgress.currentValue
         let duration = challengeDuration
+        
+        print("🔍 Checking milestones - newValue: \(newValue), duration: \(duration)")
         
         // Check for completion milestone (completed all days)
         if newValue >= duration {
+            print("🎉 Challenge completed! Showing celebration...")
             celebrationMessage = "Challenge Completed! 🎉\nYou earned \(challenge.pointsReward) points!"
             celebrationPoints = challenge.pointsReward
             showCelebration = true
@@ -1135,17 +1192,24 @@ struct ChallengeDetailView: View {
                     print("✅ Challenge completed successfully! \(message)")
                     
                     await MainActor.run {
-                        // Hide celebration overlay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        print("🚨 Setting completion alert - showingCompletionAlert: true")
+                        // Show completion alert immediately
+                        completionAlertMessage = "You've successfully completed \(challenge.title)!\n\nYou earned \(challenge.pointsReward) points! 🎉"
+                        showingCompletionAlert = true
+                        print("🚨 Alert message set: \(completionAlertMessage)")
+                        
+                        // Hide celebration overlay after a shorter time
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                             showCelebration = false
-                            
-                            // Show completion alert after celebration
-                            completionAlertMessage = "You've successfully completed \(challenge.title)!\n\nYou earned \(challenge.pointsReward) points! 🎉"
-                            showingCompletionAlert = true
                         }
                         
                         // Reload challenge data to reflect completion
                         loadChallengeData()
+                        
+                        // Force refresh challenge data in the main view
+                        Task {
+                            await challengeManager.refreshChallengeData()
+                        }
                     }
                 } else {
                     print("❌ Failed to complete challenge: \(message)")
@@ -1174,7 +1238,9 @@ struct ChallengeDetailView: View {
         // Hide celebration after 2 seconds
         if showCelebration {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                showCelebration = false
+                withAnimation(.easeOut(duration: 0.3)) {
+                    showCelebration = false
+                }
             }
         }
     }

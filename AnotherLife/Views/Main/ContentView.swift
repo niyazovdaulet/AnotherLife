@@ -7,12 +7,20 @@ struct ContentView: View {
     @StateObject private var authManager = AuthManager()
     @StateObject private var challengeManager = ChallengeManager()
     @State private var selectedTab = 0
+    @State private var showWelcomeMessage = false
+    @State private var justAuthenticated = false
+    @State private var splashIconScale: CGFloat = 1.0
     
     var body: some View {
-        Group {
-            if authManager.isAuthenticated {
-                // Main App
-                TabView(selection: $selectedTab) {
+        ZStack {
+            if authManager.isInitializing {
+                // Splash Screen / Loading State
+                splashScreenView
+            } else {
+                Group {
+                    if authManager.isAuthenticated {
+                        // Main App
+                        TabView(selection: $selectedTab) {
                     // Main Habit Tracking Tab
                     MainHabitView()
                         .tabItem {
@@ -45,32 +53,161 @@ struct ContentView: View {
                         }
                         .tag(3)
                 }
-                .preferredColorScheme(habitManager.theme == .light ? .light : habitManager.theme == .dark ? .dark : nil)
-                .environmentObject(authManager)
-                .environmentObject(challengeManager)
-                .onAppear {
-                    // Set up real-time listeners when user is authenticated
-                    if authManager.isAuthenticated {
-                        challengeManager.setAuthManager(authManager)
-                        challengeManager.setupRealTimeListeners()
-                    }
-                }
-                .onChange(of: authManager.isAuthenticated) { isAuthenticated in
-                    if isAuthenticated {
-                        // Set up listeners when user becomes authenticated
-                        challengeManager.setAuthManager(authManager)
-                        challengeManager.setupRealTimeListeners()
-                    } else {
-                        // Clean up data and listeners when user logs out
-                        challengeManager.clearAllData()
-                    }
-                }
-            } else {
-                // Authentication
-                AuthView()
+                    .preferredColorScheme(habitManager.theme == .light ? .light : habitManager.theme == .dark ? .dark : nil)
                     .environmentObject(authManager)
+                    .environmentObject(challengeManager)
+                    .opacity(showWelcomeMessage ? 0.3 : 1.0)
+                    .onAppear {
+                        // Set up real-time listeners when user is authenticated
+                        if authManager.isAuthenticated {
+                            challengeManager.setAuthManager(authManager)
+                            challengeManager.setupRealTimeListeners()
+                        }
+                    }
+                    .onChange(of: authManager.isAuthenticated) { isAuthenticated in
+                        if isAuthenticated {
+                            // Set up listeners when user becomes authenticated
+                            challengeManager.setAuthManager(authManager)
+                            challengeManager.setupRealTimeListeners()
+                            
+                            // Show welcome message
+                            justAuthenticated = true
+                            withAnimation(.easeIn(duration: 0.3)) {
+                                showWelcomeMessage = true
+                            }
+                            
+                            // Hide welcome message after 2 seconds
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    showWelcomeMessage = false
+                                }
+                            }
+                        } else {
+                            // Clean up data and listeners when user logs out
+                            challengeManager.clearAllData()
+                            justAuthenticated = false
+                        }
+                    }
+                    .transition(.opacity)
+                } else {
+                    // Authentication
+                    AuthView()
+                        .environmentObject(authManager)
+                        .transition(.opacity)
+                }
+                }
+                .animation(.easeInOut(duration: 0.4), value: authManager.isAuthenticated)
+                
+                // Welcome Message Overlay
+                if showWelcomeMessage {
+                    welcomeMessageView
+                }
             }
         }
+    }
+    
+    // MARK: - Splash Screen View
+    private var splashScreenView: some View {
+        ZStack {
+            // Background with gradient
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.primaryBlue.opacity(0.1),
+                    Color.primaryGreen.opacity(0.1)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: 30) {
+                // App Icon with animation
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.primaryBlue, Color.primaryGreen]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+                        .shadow(color: .primaryBlue.opacity(0.4), radius: 25, x: 0, y: 12)
+                    
+                    Image(systemName: "star.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.white)
+                }
+                .scaleEffect(splashIconScale)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                        splashIconScale = 1.1
+                    }
+                }
+                
+                VStack(spacing: 12) {
+                    Text("AnotherLife")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("Loading your data...")
+                        .font(.body)
+                        .foregroundColor(.textSecondary)
+                    
+                    // Loading indicator
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .primaryBlue))
+                        .scaleEffect(1.2)
+                        .padding(.top, 8)
+                }
+            }
+        }
+        .transition(.opacity)
+    }
+    
+    // MARK: - Welcome Message View
+    private var welcomeMessageView: some View {
+        VStack(spacing: 16) {
+            // Checkmark animation
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.primaryGreen, Color.primaryGreen.opacity(0.8)]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+                    .shadow(color: Color.primaryGreen.opacity(0.4), radius: 20, x: 0, y: 10)
+                
+                Image(systemName: "checkmark")
+                    .font(.system(size: 40, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .scaleEffect(showWelcomeMessage ? 1.0 : 0.5)
+            .animation(.spring(response: 0.5, dampingFraction: 0.6), value: showWelcomeMessage)
+            
+            VStack(spacing: 8) {
+                Text("Welcome back, \(authManager.currentUser?.displayName ?? "")! 👋")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.textPrimary)
+                
+                Text("Let's build great habits today")
+                    .font(.body)
+                    .foregroundColor(.textSecondary)
+            }
+        }
+        .padding(40)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.2), radius: 30, x: 0, y: 15)
+        )
+        .transition(.scale.combined(with: .opacity))
+        .zIndex(1000)
     }
 }
 

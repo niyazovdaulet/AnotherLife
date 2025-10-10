@@ -16,6 +16,7 @@ class AuthManager: ObservableObject {
     @Published var isAuthenticated = false
     @Published var currentUser: User?
     @Published var isLoading = false
+    @Published var isInitializing = true  // New: Track initial app load
     @Published var errorMessage: String?
     
     private let auth = Auth.auth()
@@ -30,6 +31,8 @@ class AuthManager: ObservableObject {
                 } else {
                     self?.isAuthenticated = false
                     self?.currentUser = nil
+                    // Mark initialization as complete
+                    self?.isInitializing = false
                 }
             }
         }
@@ -117,6 +120,9 @@ class AuthManager: ObservableObject {
                 
                 currentUser = user
                 isAuthenticated = true
+                
+                // Mark initialization as complete
+                isInitializing = false
             } else {
                 // User document doesn't exist, create it
                 if let firebaseUser = auth.currentUser {
@@ -129,10 +135,15 @@ class AuthManager: ObservableObject {
                     try await saveUserToFirestore(user)
                     currentUser = user
                     isAuthenticated = true
+                    
+                    // Mark initialization as complete
+                    isInitializing = false
                 }
             }
         } catch {
             errorMessage = "Failed to load user data: \(error.localizedDescription)"
+            // Mark initialization as complete even on error
+            isInitializing = false
         }
     }
     

@@ -17,6 +17,11 @@ struct AddHabitView: View {
     @State private var showingHabitForm = false
     @State private var selectedTemplate: HabitTemplate?
     
+    // New state variables for enhanced functionality
+    @State private var duration: HabitDuration = .fixed(days: 21)
+    @State private var targetCompletionsPerDay = 1
+    @State private var customDurationDays = 21
+    
     private let availableColors = [
         "blue", "green", "red", "orange", "purple", "pink", "teal", "indigo",
         "mint", "yellow", "brown", "gray", "cyan", "magenta", "lime", "navy"
@@ -194,6 +199,14 @@ struct AddHabitView: View {
                     // Custom Days (if weekly)
                     if frequency == .custom {
                         customDaysSection
+                    }
+                    
+                    // Duration Selection
+                    durationSection
+                    
+                    // Target Completions (if more than 1)
+                    if targetCompletionsPerDay > 1 {
+                        targetCompletionsSection
                     }
                     
                     // Habit Type
@@ -422,6 +435,152 @@ struct AddHabitView: View {
         )
     }
     
+    // MARK: - Duration Section
+    private var durationSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Duration")
+                .font(.headline)
+                .foregroundColor(.textPrimary)
+            
+            // Fixed Duration - Single Option
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Fixed Duration")
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("Set a specific number of days")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.primaryBlue)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.primaryBlue.opacity(0.1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.primaryBlue, lineWidth: 2)
+                    )
+            )
+            
+            // Duration Details
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Duration: \(customDurationDays) days")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.textPrimary)
+                
+                HStack {
+                    Text("21")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                    
+                    Slider(value: Binding(
+                        get: { Double(customDurationDays) },
+                        set: { customDurationDays = Int($0) }
+                    ), in: 21...365, step: 1)
+                    .accentColor(.primaryBlue)
+                    
+                    Text("365")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.backgroundGray)
+            )
+            
+            // Target Completions Per Day
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Target Completions Per Day")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.textPrimary)
+                
+                HStack {
+                    Text("1")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                    
+                    Slider(value: Binding(
+                        get: { Double(targetCompletionsPerDay) },
+                        set: { targetCompletionsPerDay = Int($0) }
+                    ), in: 1...10, step: 1)
+                    .accentColor(.primaryBlue)
+                    
+                    Text("10")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                }
+                
+                Text("\(targetCompletionsPerDay) completion\(targetCompletionsPerDay == 1 ? "" : "s") per day")
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.backgroundGray)
+            )
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Target Completions Section
+    private var targetCompletionsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Multi-Completion Setup")
+                .font(.headline)
+                .foregroundColor(.textPrimary)
+            
+            VStack(alignment: .leading, spacing: 12) {
+                Text("This habit requires \(targetCompletionsPerDay) completion\(targetCompletionsPerDay == 1 ? "" : "s") per day.")
+                    .font(.body)
+                    .foregroundColor(.textPrimary)
+                
+                Text("Examples:")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.textPrimary)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("• Prayer 5 times per day")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                    Text("• Drink 8 glasses of water")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                    Text("• Exercise twice daily")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.primaryBlue.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.primaryBlue.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
     // MARK: - Customization Section
     private var customizationSection: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -491,6 +650,14 @@ struct AddHabitView: View {
     }
     
     // MARK: - Helper Methods
+    private var isUnlimitedDuration: Bool {
+        if case .unlimited = duration {
+            return true
+        }
+        return false
+    }
+    
+    
     private func toggleTemplateSelection(_ template: HabitTemplate) {
         // Open the habit form with the selected template data
         selectedTemplate = template
@@ -541,7 +708,10 @@ struct AddHabitView: View {
                 customDays: customDays,
                 isPositive: isPositive,
                 color: selectedColor,
-                icon: selectedIcon
+                icon: selectedIcon,
+                duration: duration,
+                targetCompletionsPerDay: targetCompletionsPerDay,
+                startDate: Date()
             )
             habitManager.addHabit(habit)
         } else if showingHabitForm && selectedTemplate != nil {
@@ -553,7 +723,10 @@ struct AddHabitView: View {
                 customDays: customDays,
                 isPositive: isPositive,
                 color: selectedColor,
-                icon: selectedIcon
+                icon: selectedIcon,
+                duration: duration,
+                targetCompletionsPerDay: targetCompletionsPerDay,
+                startDate: Date()
             )
             habitManager.addHabit(habit)
         } else {
@@ -566,7 +739,10 @@ struct AddHabitView: View {
                     customDays: [],
                     isPositive: template.isPositive,
                     color: template.colorHex,
-                    icon: template.icon
+                    icon: template.icon,
+                    duration: .fixed(days: 21), // Templates default to 21 days
+                    targetCompletionsPerDay: 1, // Templates default to single completion
+                    startDate: Date()
                 )
                 habitManager.addHabit(habit)
             }

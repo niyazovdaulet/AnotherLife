@@ -516,10 +516,8 @@ struct MainHabitView: View {
         
         let totalHabits = habitManager.habits.count
         let completedHabits = habitManager.habits.filter { habit in
-            if let entry = habitManager.getEntry(for: habit, on: habitManager.selectedDate) {
-                return entry.status == .completed
-            }
-            return false
+            // Check if the day is fully completed according to the habit's criteria
+            return habitManager.isDayComplete(for: habit, on: habitManager.selectedDate)
         }.count
         
         return Double(completedHabits) / Double(totalHabits) * 100
@@ -1031,11 +1029,24 @@ extension Color {
 struct HabitGridView: View {
     let habit: Habit
     @EnvironmentObject var habitManager: HabitManager
-    @State private var showingNotes = false
-    @State private var selectedTileDate: Date?
+    @State private var showingCompletionDetail = false
     
-    private let daysToShow = 50
-    private let columns = 10 // 10 columns for 50 days (5 rows)
+    // Dynamic grid sizing based on habit duration
+    private var gridLayout: GridLayout {
+        GridLayout.calculateForHabit(habit)
+    }
+    
+    private var daysToShow: Int {
+        gridLayout.totalCells
+    }
+    
+    private var columns: Int {
+        gridLayout.columns
+    }
+    
+    private var rows: Int {
+        gridLayout.rows
+    }
     
     var body: some View {
         // Main Card Content
@@ -1060,28 +1071,50 @@ struct HabitGridView: View {
                     }
                     
                     // Tags
-                    HStack(spacing: 6) {
-                        Text(habit.frequency.displayName)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule()
-                                    .fill(Color.primaryBlue.opacity(0.1))
-                            )
-                            .foregroundColor(.primaryBlue)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(habit.frequency.displayName)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.primaryBlue.opacity(0.1))
+                                )
+                                .foregroundColor(.primaryBlue)
+                            
+                            Text(habit.isPositive ? "Positive" : "Negative")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule()
+                                        .fill(habit.isPositive ? Color.primaryGreen.opacity(0.1) : Color.primaryRed.opacity(0.1))
+                                )
+                                .foregroundColor(habit.isPositive ? .primaryGreen : .primaryRed)
+                            
+                            if habit.targetCompletionsPerDay > 1 {
+                                Text("\(habit.targetCompletionsPerDay)x/day")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.orange.opacity(0.1))
+                                    )
+                                    .foregroundColor(.orange)
+                            }
+                        }
                         
-                        Text(habit.isPositive ? "Positive" : "Negative")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule()
-                                    .fill(habit.isPositive ? Color.primaryGreen.opacity(0.1) : Color.primaryRed.opacity(0.1))
-                            )
-                            .foregroundColor(habit.isPositive ? .primaryGreen : .primaryRed)
+                        // Duration info
+                        if !habit.duration.isUnlimited {
+                            Text(habit.duration.displayName)
+                                .font(.caption2)
+                                .foregroundColor(.textSecondary)
+                        }
                     }
                 }
                 
@@ -1089,13 +1122,37 @@ struct HabitGridView: View {
                 
                 // Completion Button
                 completionButton
+                    .onLongPressGesture(minimumDuration: 0.5) {
+                        if habit.targetCompletionsPerDay > 1 {
+                            showingCompletionDetail = true
+                        }
+                    }
+                    .onTapGesture(count: 2) {
+                        // Double-tap to undo last completion
+                        undoLastCompletion()
+                    }
             }
             
             // Grid of Days
             VStack(spacing: 4) {
-                // Current streak
+                // Progress and streak info
                 HStack {
+                    // Duration progress (if applicable)
+                    if !habit.duration.isUnlimited {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.primaryBlue)
+                                .font(.caption)
+                            Text("\(Int(habitManager.getCompletionProgress(for: habit) * 100))%")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primaryBlue)
+                        }
+                    }
+                    
                     Spacer()
+                    
+                    // Current streak
                     HStack(spacing: 4) {
                         Image(systemName: "flame.fill")
                             .foregroundColor(.orange)
@@ -1109,18 +1166,21 @@ struct HabitGridView: View {
                 
                 // Grid Layout
                 VStack(spacing: 6) {
-                    ForEach(0..<5) { row in
+                    ForEach(0..<rows, id: \.self) { row in
                         HStack(spacing: 6) {
-                            ForEach(0..<10) { col in
-                                let index = row * 10 + col
+                            ForEach(0..<columns, id: \.self) { col in
+                                let index = row * columns + col
                                 if index < dayTiles.count {
                                     DayTileView(
                                         dayTile: dayTiles[index],
                                         habitColor: habitColor,
+                                        habit: habit,
                                         onTap: { 
-                                            selectedTileDate = dayTiles[index].date
-                                            updateStatus(for: dayTiles[index].date)
-                                        }
+                                            // Disabled: No direct tap-to-complete on day tiles
+                                        },
+                                        onLongPress: habit.targetCompletionsPerDay > 1 ? {
+                                            showingCompletionDetail = true
+                                        } : nil
                                     )
                                 } else {
                                     // Empty space for incomplete rows
@@ -1133,26 +1193,6 @@ struct HabitGridView: View {
                     }
                 }
             }
-            
-            // Notes Button
-            if selectedTileDate != nil {
-                Button(action: { showingNotes = true }) {
-                    HStack {
-                        Image(systemName: "note.text")
-                        Text("Add Notes")
-                    }
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primaryBlue)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.primaryBlue.opacity(0.1))
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
         }
         .padding(12)
         .background(
@@ -1160,8 +1200,9 @@ struct HabitGridView: View {
                 .fill(Color.cardBackground)
                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         )
-        .sheet(isPresented: $showingNotes) {
-            NotesView(habit: habit)
+        .sheet(isPresented: $showingCompletionDetail) {
+            CompletionDetailView(habit: habit, date: Date())
+                .environmentObject(habitManager)
         }
     }
     
@@ -1186,19 +1227,79 @@ struct HabitGridView: View {
             toggleTodayStatus()
         }) {
             ZStack {
-                Circle()
-                    .fill(todayStatus == .completed ? .primaryGreen : habitColor.opacity(0.1))
-                    .frame(width: 36, height: 36)
-                    .shadow(color: todayStatus == .completed ? .primaryGreen.opacity(0.3) : .clear, radius: 6, x: 0, y: 3)
-                
-                Image(systemName: todayStatus == .completed ? "checkmark" : "circle")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(todayStatus == .completed ? .white : habitColor)
+                if habit.targetCompletionsPerDay > 1 {
+                    // Multi-completion habit - show progress ring
+                    let progress = habitManager.getCompletionProgress(for: habit, on: Date())
+                    
+                    // Background circle
+                    Circle()
+                        .fill(habitColor.opacity(0.1))
+                        .frame(width: 36, height: 36)
+                    
+                    // Progress ring
+                    Circle()
+                        .stroke(habitColor.opacity(0.3), lineWidth: 3)
+                        .frame(width: 36, height: 36)
+                    
+                    Circle()
+                        .trim(from: 0, to: progress.percentage)
+                        .stroke(habitColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .frame(width: 36, height: 36)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut(duration: 0.3), value: progress.percentage)
+                    
+                    // Center content
+                    VStack(spacing: 1) {
+                        if progress.completed == progress.target && progress.target > 0 {
+                            // Fully completed
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        } else {
+                            // Show progress
+                            Text("\(progress.completed)")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(habitColor)
+                        }
+                        
+                        if progress.target > 1 {
+                            Text("\(progress.target)")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundColor(habitColor.opacity(0.7))
+                        }
+                        
+                        // Undo hint for completed habits
+                        if progress.completed > 0 {
+                            Image(systemName: "arrow.uturn.backward.circle")
+                                .font(.system(size: 8))
+                                .foregroundColor(habitColor.opacity(0.5))
+                        }
+                    }
+                } else {
+                    // Single completion habit - original design
+                    Circle()
+                        .fill(todayStatus == .completed ? .primaryGreen : habitColor.opacity(0.1))
+                        .frame(width: 36, height: 36)
+                        .shadow(color: todayStatus == .completed ? .primaryGreen.opacity(0.3) : .clear, radius: 6, x: 0, y: 3)
+                    
+                    VStack(spacing: 1) {
+                        Image(systemName: todayStatus == .completed ? "checkmark" : "circle")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                            .foregroundColor(todayStatus == .completed ? .white : habitColor)
+                        
+                        // Undo hint for completed habits
+                        if todayStatus == .completed {
+                            Image(systemName: "arrow.uturn.backward.circle")
+                                .font(.system(size: 8))
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                    }
+                }
             }
         }
         .buttonStyle(PlainButtonStyle())
-        .scaleEffect(todayStatus == .completed ? 1.0 : 0.9)
+        .scaleEffect(habit.targetCompletionsPerDay > 1 ? 1.0 : (todayStatus == .completed ? 1.0 : 0.9))
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: todayStatus)
     }
     
@@ -1211,8 +1312,24 @@ struct HabitGridView: View {
         let today = Date()
         var tiles: [DayTile] = []
         
-        for i in 0..<daysToShow {
-            let date = calendar.date(byAdding: .day, value: -i, to: today) ?? today
+        // Calculate the start date based on habit duration
+        let startDate: Date
+        if !habit.duration.isUnlimited {
+            startDate = habit.startDate
+        } else {
+            // For unlimited habits, show last 50 days from today
+            startDate = calendar.date(byAdding: .day, value: -49, to: today) ?? today
+        }
+        
+        // Generate tiles from start date to today (or habit end date)
+        let endDate = habit.endDate ?? today
+        let totalDays = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0
+        
+        // For fixed duration habits, ensure we show exactly the total days
+        let daysToGenerate = habit.duration.isUnlimited ? min(totalDays, daysToShow) : min(totalDays + 1, daysToShow)
+        
+        for i in 0..<daysToGenerate {
+            let date = calendar.date(byAdding: .day, value: i, to: startDate) ?? startDate
             let entry = habitManager.getEntry(for: habit, on: date)
             let isToday = calendar.isDateInToday(date)
             
@@ -1224,7 +1341,7 @@ struct HabitGridView: View {
             ))
         }
         
-        return tiles.reversed() // Show oldest first
+        return tiles
     }
     
     private var currentStreak: Int {
@@ -1233,29 +1350,47 @@ struct HabitGridView: View {
     
     
     private func updateStatus(for date: Date) {
-        let currentEntry = habitManager.getEntry(for: habit, on: date)
-        let currentStatus = currentEntry?.status
-        
-        // Cycle through statuses: none -> completed -> failed -> skipped -> none
-        let nextStatus: HabitStatus?
-        switch currentStatus {
-        case .none:
-            nextStatus = .completed
-        case .completed:
-            nextStatus = .failed
-        case .failed:
-            nextStatus = .skipped
-        case .skipped:
-            nextStatus = nil
-        }
-        
-        if let status = nextStatus {
-            habitManager.updateEntry(for: habit, status: status)
+        // For multi-completion habits, add a completion instead of cycling status
+        if habit.targetCompletionsPerDay > 1 {
+            let progress = habitManager.getCompletionProgress(for: habit, on: date)
+            
+            if progress.completed < progress.target {
+                // Add a completion
+                habitManager.addCompletion(for: habit, on: date)
+            } else {
+                // Remove the last completion
+                let completions = habitManager.getCompletions(for: habit, on: date)
+                if let lastCompletion = completions.last {
+                    habitManager.removeCompletion(for: habit, completionId: lastCompletion.id, on: date)
+                }
+            }
         } else {
-            // Remove entry (set to none)
-            if let index = habitManager.entries.firstIndex(where: { $0.habitId == habit.id && Calendar.current.isDate($0.date, inSameDayAs: date) }) {
-                habitManager.entries.remove(at: index)
-                habitManager.saveEntries()
+            // Single completion habits - cycle through statuses
+            let currentEntry = habitManager.getEntry(for: habit, on: date)
+            let currentStatus = currentEntry?.status
+            
+            let nextStatus: HabitStatus?
+            switch currentStatus {
+            case .none:
+                nextStatus = .completed
+            case .completed:
+                nextStatus = .failed
+            case .failed:
+                nextStatus = .skipped
+            case .skipped:
+                nextStatus = nil
+            default:
+                nextStatus = .completed
+            }
+            
+            if let status = nextStatus {
+                habitManager.updateEntry(for: habit, status: status)
+            } else {
+                // Remove entry (set to none)
+                if let index = habitManager.entries.firstIndex(where: { $0.habitId == habit.id && Calendar.current.isDate($0.date, inSameDayAs: date) }) {
+                    habitManager.entries.remove(at: index)
+                    habitManager.saveEntries()
+                }
             }
         }
         
@@ -1266,19 +1401,48 @@ struct HabitGridView: View {
     
     private func toggleTodayStatus() {
         let today = Date()
-        let currentEntry = habitManager.getEntry(for: habit, on: today)
-        let currentStatus = currentEntry?.status
         
-        if currentStatus == .completed {
-            // Mark as failed (leave it)
-            habitManager.updateEntry(for: habit, status: .failed)
+        // For multi-completion habits, add a completion
+        if habit.targetCompletionsPerDay > 1 {
+            let progress = habitManager.getCompletionProgress(for: habit, on: today)
+            
+            if progress.completed < progress.target {
+                // Add a completion
+                habitManager.addCompletion(for: habit, on: today)
+            }
         } else {
-            // Mark as completed
-            habitManager.updateEntry(for: habit, status: .completed)
+            // Single completion habits
+            let currentEntry = habitManager.getEntry(for: habit, on: today)
+            let currentStatus = currentEntry?.status
+            
+            if currentStatus == .completed {
+                // Mark as failed (leave it)
+                habitManager.updateEntry(for: habit, status: .failed)
+            } else {
+                // Mark as completed
+                habitManager.updateEntry(for: habit, status: .completed)
+            }
         }
         
         // Haptic feedback
         let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+    }
+    
+    private func undoLastCompletion() {
+        if habit.targetCompletionsPerDay > 1 {
+            // Multi-completion habit - remove last completion
+            let completions = habitManager.getCompletions(for: habit, on: Date())
+            if let lastCompletion = completions.last {
+                habitManager.removeCompletion(for: habit, completionId: lastCompletion.id, on: Date())
+            }
+        } else {
+            // Single completion habit - reset to skipped
+            habitManager.updateEntry(for: habit, status: .skipped)
+        }
+        
+        // Haptic feedback for undo
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
     }
 }
@@ -1287,7 +1451,19 @@ struct HabitGridView: View {
 struct DayTileView: View {
     let dayTile: DayTile
     let habitColor: Color
+    let habit: Habit
     let onTap: () -> Void
+    let onLongPress: (() -> Void)?
+    
+    @EnvironmentObject var habitManager: HabitManager
+    
+    init(dayTile: DayTile, habitColor: Color, habit: Habit, onTap: @escaping () -> Void, onLongPress: (() -> Void)? = nil) {
+        self.dayTile = dayTile
+        self.habitColor = habitColor
+        self.habit = habit
+        self.onTap = onTap
+        self.onLongPress = onLongPress
+    }
     
     var body: some View {
         Button(action: onTap) {
@@ -1298,22 +1474,81 @@ struct DayTileView: View {
                     .frame(width: 28, height: 28)
                 
                 // Content
-                VStack(spacing: 1) {
-                    Text("\(dayTile.dayNumber)")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(tileTextColor)
-                    
-                    if let status = dayTile.status {
-                        Image(systemName: status.icon)
-                            .font(.system(size: 8))
-                            .foregroundColor(tileTextColor)
-                    }
+                if habit.targetCompletionsPerDay > 1 {
+                    multiCompletionContent
+                } else {
+                    singleCompletionContent
                 }
             }
         }
         .buttonStyle(PlainButtonStyle())
         .scaleEffect(dayTile.isToday ? 1.1 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: dayTile.isToday)
+        .onLongPressGesture(minimumDuration: 0.5) {
+            onLongPress?()
+        }
+    }
+    
+    private var singleCompletionContent: some View {
+        VStack(spacing: 1) {
+            Text("\(dayTile.dayNumber)")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(tileTextColor)
+            
+            if let status = dayTile.status {
+                Image(systemName: status.icon)
+                    .font(.system(size: 8))
+                    .foregroundColor(tileTextColor)
+            }
+        }
+    }
+    
+    private var multiCompletionContent: some View {
+        let progress = habitManager.getCompletionProgress(for: habit, on: dayTile.date)
+        
+        return VStack(spacing: 2) {
+            Text("\(dayTile.dayNumber)")
+                .font(.system(size: 8, weight: .medium))
+                .foregroundColor(tileTextColor)
+            
+            // Enhanced progress indicator for multi-completion habits
+            if progress.target > 1 {
+                if progress.target <= 4 {
+                    // For small targets (2-4), use individual dots
+                    HStack(spacing: 1) {
+                        ForEach(0..<progress.target, id: \.self) { index in
+                            Circle()
+                                .fill(index < progress.completed ? tileTextColor : tileTextColor.opacity(0.3))
+                                .frame(width: 4, height: 4)
+                        }
+                    }
+                } else {
+                    // For larger targets (5+), use a progress bar
+                    VStack(spacing: 1) {
+                        // Progress bar
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                // Background
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(tileTextColor.opacity(0.2))
+                                    .frame(height: 2)
+                                
+                                // Progress fill
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(tileTextColor)
+                                    .frame(width: geometry.size.width * progress.percentage, height: 2)
+                            }
+                        }
+                        .frame(height: 2)
+                        
+                        // Progress text (small)
+                        Text("\(progress.completed)/\(progress.target)")
+                            .font(.system(size: 6, weight: .medium))
+                            .foregroundColor(tileTextColor.opacity(0.8))
+                    }
+                }
+            }
+        }
     }
     
     private var tileBackgroundColor: Color {
@@ -1321,15 +1556,29 @@ struct DayTileView: View {
             return habitColor.opacity(0.4)
         }
         
-        switch dayTile.status {
-        case .completed:
-            return habitColor
-        case .failed:
-            return habitColor.opacity(0.4)
-        case .skipped:
-            return habitColor.opacity(0.2)
-        case .none:
-            return Color.gray.opacity(0.15)
+        // For multi-completion habits, use completion progress
+        if habit.targetCompletionsPerDay > 1 {
+            let progress = habitManager.getCompletionProgress(for: habit, on: dayTile.date)
+            
+            if progress.completed == progress.target && progress.target > 0 {
+                return habitColor // Fully completed
+            } else if progress.completed > 0 {
+                return habitColor.opacity(0.6) // Partially completed
+            } else {
+                return Color.gray.opacity(0.15) // Not started
+            }
+        } else {
+            // Single completion habits
+            switch dayTile.status {
+            case .completed:
+                return habitColor
+            case .failed:
+                return habitColor.opacity(0.4)
+            case .skipped:
+                return habitColor.opacity(0.2)
+            case .none:
+                return Color.gray.opacity(0.15)
+            }
         }
     }
     
@@ -1352,11 +1601,154 @@ struct DayTileView: View {
 }
 
 // MARK: - Day Tile Model
-struct DayTile {
+struct DayTile: Identifiable {
+    let id = UUID()
     let date: Date
     let status: HabitStatus?
     let isToday: Bool
     let dayNumber: Int
+}
+
+// MARK: - Completion Detail View
+struct CompletionDetailView: View {
+    let habit: Habit
+    let date: Date
+    @EnvironmentObject var habitManager: HabitManager
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 12) {
+                    // Habit icon
+                    ZStack {
+                        Circle()
+                            .fill(habitColor.opacity(0.15))
+                            .frame(width: 60, height: 60)
+                        
+                        Image(systemName: habit.icon)
+                            .font(.title)
+                            .foregroundColor(habitColor)
+                    }
+                    
+                    Text(habit.title)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("\(habit.targetCompletionsPerDay) completion\(habit.targetCompletionsPerDay == 1 ? "" : "s") per day")
+                        .font(.subheadline)
+                        .foregroundColor(.textSecondary)
+                }
+                .padding(.top, 20)
+                
+                // Progress section
+                VStack(spacing: 16) {
+                    let progress = habitManager.getCompletionProgress(for: habit, on: date)
+                    
+                    // Progress ring
+                    ZStack {
+                        Circle()
+                            .stroke(habitColor.opacity(0.2), lineWidth: 8)
+                            .frame(width: 120, height: 120)
+                        
+                        Circle()
+                            .trim(from: 0, to: progress.percentage)
+                            .stroke(habitColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .frame(width: 120, height: 120)
+                            .rotationEffect(.degrees(-90))
+                            .animation(.easeInOut(duration: 0.5), value: progress.percentage)
+                        
+                        VStack(spacing: 4) {
+                            Text("\(progress.completed)")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(habitColor)
+                            
+                            Text("of \(progress.target)")
+                                .font(.subheadline)
+                                .foregroundColor(.textSecondary)
+                        }
+                    }
+                    
+                    // Progress text
+                    Text(progress.completed == progress.target ? "Goal completed! 🎉" : "Keep going! 💪")
+                        .font(.headline)
+                        .foregroundColor(progress.completed == progress.target ? .primaryGreen : .textPrimary)
+                }
+                
+                // Completion buttons
+                VStack(spacing: 12) {
+                    let progress = habitManager.getCompletionProgress(for: habit, on: date)
+                    
+                    if progress.completed < progress.target {
+                        // Add completion button
+                        Button(action: {
+                            habitManager.addCompletion(for: habit, on: date)
+                        }) {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                Text("Add Completion")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(habitColor)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    
+                    if progress.completed > 0 {
+                        // Remove completion button
+                        Button(action: {
+                            let completions = habitManager.getCompletions(for: habit, on: date)
+                            if let lastCompletion = completions.last {
+                                habitManager.removeCompletion(for: habit, completionId: lastCompletion.id, on: date)
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "minus.circle.fill")
+                                Text("Remove Last Completion")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.primaryRed)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.primaryRed.opacity(0.1))
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal, 20)
+                
+                Spacer()
+            }
+            .navigationTitle(isToday ? "Today's Progress" : "Progress Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private var habitColor: Color {
+        Color(hex: habit.color) ?? .primaryBlue
+    }
+    
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(date)
+    }
 }
 
 #Preview {

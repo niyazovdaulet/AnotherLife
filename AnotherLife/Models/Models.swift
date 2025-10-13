@@ -48,6 +48,68 @@ enum HabitFrequency: String, CaseIterable, Codable {
     }
 }
 
+// MARK: - Habit Duration
+enum HabitDuration: Codable {
+    case fixed(days: Int)
+    case unlimited
+    case custom(startDate: Date, endDate: Date)
+    
+    var displayName: String {
+        switch self {
+        case .fixed(let days):
+            return "\(days) days"
+        case .unlimited:
+            return "Unlimited"
+        case .custom(_, _):
+            return "Custom range"
+        }
+    }
+    
+    var isUnlimited: Bool {
+        if case .unlimited = self {
+            return true
+        }
+        return false
+    }
+    
+    func daysFromStart(_ startDate: Date) -> Int? {
+        switch self {
+        case .fixed(let days):
+            return days
+        case .unlimited:
+            return nil
+        case .custom(_, let endDate):
+            return Calendar.current.dateComponents([.day], from: startDate, to: endDate).day ?? 0
+        }
+    }
+    
+    func endDate(from startDate: Date) -> Date? {
+        switch self {
+        case .fixed(let days):
+            return Calendar.current.date(byAdding: .day, value: days - 1, to: startDate)
+        case .unlimited:
+            return nil
+        case .custom(_, let endDate):
+            return endDate
+        }
+    }
+}
+
+// MARK: - Habit Completion
+struct HabitCompletion: Identifiable, Codable {
+    let id: UUID
+    let time: Date
+    var status: HabitStatus
+    var notes: String
+    
+    init(time: Date = Date(), status: HabitStatus = .completed, notes: String = "") {
+        self.id = UUID()
+        self.time = time
+        self.status = status
+        self.notes = notes
+    }
+}
+
 // MARK: - Habit
 struct Habit: Identifiable, Codable {
     let id: UUID
@@ -60,7 +122,12 @@ struct Habit: Identifiable, Codable {
     var color: String // Hex color string
     var icon: String // SF Symbol name
     
-    init(title: String, description: String = "", frequency: HabitFrequency = .daily, customDays: [Int] = [], isPositive: Bool = true, color: String = "blue", icon: String = "star.fill") {
+    // New properties for enhanced functionality
+    var duration: HabitDuration
+    var targetCompletionsPerDay: Int
+    var startDate: Date
+    
+    init(title: String, description: String = "", frequency: HabitFrequency = .daily, customDays: [Int] = [], isPositive: Bool = true, color: String = "blue", icon: String = "star.fill", duration: HabitDuration = .unlimited, targetCompletionsPerDay: Int = 1, startDate: Date = Date()) {
         self.id = UUID()
         self.title = title
         self.description = description
@@ -70,6 +137,31 @@ struct Habit: Identifiable, Codable {
         self.createdAt = Date()
         self.color = color
         self.icon = icon
+        self.duration = duration
+        self.targetCompletionsPerDay = targetCompletionsPerDay
+        self.startDate = startDate
+    }
+    
+    // Computed properties
+    var endDate: Date? {
+        return duration.endDate(from: startDate)
+    }
+    
+    var totalDays: Int? {
+        return duration.daysFromStart(startDate)
+    }
+    
+    var isCompleted: Bool {
+        if let endDate = endDate {
+            return Date() > endDate
+        }
+        return false
+    }
+    
+    var progressPercentage: Double {
+        // This will be calculated by HabitManager based on actual completions
+        // For now, return 0 - will be updated when HabitManager calculates it
+        return 0.0
     }
 }
 
@@ -78,15 +170,62 @@ struct HabitEntry: Identifiable, Codable {
     let id: UUID
     let habitId: UUID
     let date: Date
-    var status: HabitStatus
+    var status: HabitStatus // Legacy field for backward compatibility
     var notes: String
+    var completions: [HabitCompletion] // New multi-completion support
     
-    init(habitId: UUID, date: Date, status: HabitStatus = .skipped, notes: String = "") {
+    init(habitId: UUID, date: Date, status: HabitStatus = .skipped, notes: String = "", completions: [HabitCompletion] = []) {
         self.id = UUID()
         self.habitId = habitId
         self.date = date
         self.status = status
         self.notes = notes
+        self.completions = completions
+    }
+    
+    // Computed properties for multi-completion support
+    var completedCount: Int {
+        return completions.filter { $0.status == .completed }.count
+    }
+    
+    var failedCount: Int {
+        return completions.filter { $0.status == .failed }.count
+    }
+    
+    var totalCompletions: Int {
+        return completions.count
+    }
+    
+    var completionPercentage: Double {
+        guard totalCompletions > 0 else { return 0 }
+        return Double(completedCount) / Double(totalCompletions)
+    }
+    
+    var isFullyCompleted: Bool {
+        return totalCompletions > 0 && completedCount == totalCompletions
+    }
+    
+    var isPartiallyCompleted: Bool {
+        return completedCount > 0 && completedCount < totalCompletions
+    }
+    
+    var isNotStarted: Bool {
+        return totalCompletions == 0
+    }
+    
+    // Legacy compatibility - derive status from completions
+    var derivedStatus: HabitStatus {
+        if isNotStarted {
+            return .skipped
+        } else if isFullyCompleted {
+            return .completed
+        } else if failedCount > 0 {
+            return .failed
+        } else if isPartiallyCompleted {
+            return .completed // Treat partial as completed for now
+        } else {
+            return .skipped
+        }
     }
 }
 
@@ -104,6 +243,37 @@ struct HabitStatistics {
     var successRate: Double {
         guard totalDays > 0 else { return 0 }
         return Double(completedDays) / Double(totalDays) * 100
+    }
+}
+
+// MARK: - Grid Layout
+struct GridLayout {
+    let rows: Int
+    let columns: Int
+    let isScrollable: Bool
+    let totalCells: Int
+    
+    init(rows: Int, columns: Int, isScrollable: Bool = false, totalCells: Int? = nil) {
+        self.rows = rows
+        self.columns = columns
+        self.isScrollable = isScrollable
+        self.totalCells = totalCells ?? (rows * columns)
+    }
+    
+    static func calculateForHabit(_ habit: Habit) -> GridLayout {
+        guard let totalDays = habit.totalDays else {
+            // Unlimited duration - use standard 5x10 scrollable grid
+            return GridLayout(rows: 5, columns: 10, isScrollable: true, totalCells: 50)
+        }
+        
+        if totalDays <= 50 {
+            // Small habits - fit in a single grid
+            let rows = (totalDays + 9) / 10 // Ceiling division
+            return GridLayout(rows: rows, columns: 10, isScrollable: false, totalCells: totalDays)
+        } else {
+            // Large habits - use scrollable grid
+            return GridLayout(rows: 5, columns: 10, isScrollable: true, totalCells: totalDays)
+        }
     }
 }
 

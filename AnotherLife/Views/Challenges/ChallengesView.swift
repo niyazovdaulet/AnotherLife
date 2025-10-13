@@ -108,7 +108,7 @@ struct ChallengesView: View {
             // User Stats
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Welcome back!")
+                    Text("Time to x!")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.textPrimary)

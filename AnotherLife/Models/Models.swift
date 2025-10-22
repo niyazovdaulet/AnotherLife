@@ -297,29 +297,52 @@ enum AppTheme: String, CaseIterable, Codable {
 
 // MARK: - Color Extensions
 extension Color {
-    // MARK: - Primary Colors
-    static let primaryBlue = Color(red: 0.2, green: 0.4, blue: 0.9)
-    static let primaryGreen = Color(red: 0.2, green: 0.7, blue: 0.3)
-    static let primaryRed = Color(red: 0.9, green: 0.3, blue: 0.3)
+    // MARK: - Modern Primary Colors (iOS 17+ inspired)
+    static let primaryBlue = Color(red: 0.0, green: 0.48, blue: 1.0)      // System Blue
+    static let primaryGreen = Color(red: 0.20, green: 0.78, blue: 0.35)   // System Green
+    static let primaryRed = Color(red: 1.0, green: 0.23, blue: 0.19)      // System Red
+    static let primaryOrange = Color(red: 1.0, green: 0.58, blue: 0.0)    // System Orange
+    static let primaryPurple = Color(red: 0.69, green: 0.32, blue: 0.87)  // System Purple
+    static let primaryPink = Color(red: 1.0, green: 0.18, blue: 0.33)     // System Pink
+    static let primaryTeal = Color(red: 0.35, green: 0.78, blue: 0.98)    // System Teal
+    static let primaryIndigo = Color(red: 0.35, green: 0.34, blue: 0.84)  // System Indigo
     
-    // MARK: - Light Theme Colors
+    // MARK: - Semantic Colors
+    static let success = Color(red: 0.20, green: 0.78, blue: 0.35)
+    static let warning = Color(red: 1.0, green: 0.58, blue: 0.0)
+    static let error = Color(red: 1.0, green: 0.23, blue: 0.19)
+    static let info = Color(red: 0.0, green: 0.48, blue: 1.0)
+    
+    // MARK: - Light Theme Colors (iOS 17+ inspired)
     static let lightBackground = Color(red: 0.95, green: 0.95, blue: 0.97)
     static let lightCardBackground = Color.white
-    static let lightTextPrimary = Color.primary
-    static let lightTextSecondary = Color.secondary
+    static let lightSecondaryBackground = Color(red: 0.98, green: 0.98, blue: 0.99)
+    static let lightTextPrimary = Color(red: 0.0, green: 0.0, blue: 0.0)
+    static let lightTextSecondary = Color(red: 0.24, green: 0.24, blue: 0.26)
+    static let lightTextTertiary = Color(red: 0.43, green: 0.43, blue: 0.45)
+    static let lightSeparator = Color(red: 0.24, green: 0.24, blue: 0.26).opacity(0.29)
     
-    // MARK: - Dark Theme Colors
-    static let darkBackground = Color(red: 0.05, green: 0.05, blue: 0.08)
-    static let darkCardBackground = Color(red: 0.12, green: 0.12, blue: 0.16)
-    static let darkTextPrimary = Color.white
-    static let darkTextSecondary = Color(red: 0.7, green: 0.7, blue: 0.7)
-    static let darkAccent = Color(red: 0.3, green: 0.3, blue: 0.35)
+    // MARK: - Dark Theme Colors (iOS 17+ inspired)
+    static let darkBackground = Color(red: 0.0, green: 0.0, blue: 0.0)
+    static let darkCardBackground = Color(red: 0.11, green: 0.11, blue: 0.12)
+    static let darkSecondaryBackground = Color(red: 0.08, green: 0.08, blue: 0.09)
+    static let darkTextPrimary = Color(red: 1.0, green: 1.0, blue: 1.0)
+    static let darkTextSecondary = Color(red: 0.92, green: 0.92, blue: 0.96)
+    static let darkTextTertiary = Color(red: 0.64, green: 0.64, blue: 0.68)
+    static let darkSeparator = Color(red: 0.33, green: 0.33, blue: 0.36)
     
     // MARK: - Dynamic Colors (Theme-aware)
-    static var backgroundGray: Color {
+    static var background: Color {
         Color(UIColor { traitCollection in
             traitCollection.userInterfaceStyle == .dark ? 
             UIColor(darkBackground) : UIColor(lightBackground)
+        })
+    }
+    
+    static var secondaryBackground: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? 
+            UIColor(darkSecondaryBackground) : UIColor(lightSecondaryBackground)
         })
     }
     
@@ -344,23 +367,92 @@ extension Color {
         })
     }
     
-    // MARK: - Additional colors for habits (Dark theme optimized)
-    static let mint = Color(red: 0.0, green: 0.8, blue: 0.6)
-    static let yellow = Color(red: 1.0, green: 0.8, blue: 0.0)
-    static let brown = Color(red: 0.6, green: 0.4, blue: 0.2)
-    static let gray = Color(red: 0.5, green: 0.5, blue: 0.5)
-    static let cyan = Color(red: 0.0, green: 0.8, blue: 0.8)
-    static let magenta = Color(red: 1.0, green: 0.0, blue: 1.0)
-    static let lime = Color(red: 0.5, green: 1.0, blue: 0.0)
-    static let navy = Color(red: 0.0, green: 0.0, blue: 0.5)
+    static var textTertiary: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? 
+            UIColor(darkTextTertiary) : UIColor(lightTextTertiary)
+        })
+    }
     
-    // MARK: - Dark Theme Specific Colors
-    static let darkBlue = Color(red: 0.3, green: 0.5, blue: 1.0)
-    static let darkGreen = Color(red: 0.3, green: 0.8, blue: 0.4)
-    static let darkRed = Color(red: 1.0, green: 0.4, blue: 0.4)
-    static let darkOrange = Color(red: 1.0, green: 0.6, blue: 0.2)
-    static let darkPurple = Color(red: 0.7, green: 0.4, blue: 1.0)
-    static let darkPink = Color(red: 1.0, green: 0.4, blue: 0.8)
-    static let darkTeal = Color(red: 0.2, green: 0.8, blue: 0.8)
-    static let darkIndigo = Color(red: 0.4, green: 0.4, blue: 1.0)
+    static var separator: Color {
+        Color(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark ? 
+            UIColor(darkSeparator) : UIColor(lightSeparator)
+        })
+    }
+    
+    // MARK: - Modern Gradient Colors
+    static let primaryGradient = LinearGradient(
+        colors: [primaryBlue, primaryPurple],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    
+    static let successGradient = LinearGradient(
+        colors: [primaryGreen, primaryTeal],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    
+    static let warningGradient = LinearGradient(
+        colors: [primaryOrange, primaryPink],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    
+    static let errorGradient = LinearGradient(
+        colors: [primaryRed, primaryPink],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    
+    // MARK: - Habit Colors (Modern palette)
+    static let habitBlue = primaryBlue
+    static let habitGreen = primaryGreen
+    static let habitRed = primaryRed
+    static let habitOrange = primaryOrange
+    static let habitPurple = primaryPurple
+    static let habitPink = primaryPink
+    static let habitTeal = primaryTeal
+    static let habitIndigo = primaryIndigo
+    static let habitMint = Color(red: 0.0, green: 0.8, blue: 0.6)
+    static let habitYellow = Color(red: 1.0, green: 0.8, blue: 0.0)
+    static let habitBrown = Color(red: 0.6, green: 0.4, blue: 0.2)
+    static let habitGray = Color(red: 0.5, green: 0.5, blue: 0.5)
+    
+    // Additional colors for enhanced UI
+    static let primaryYellow = Color(red: 1.0, green: 0.8, blue: 0.0)
+}
+
+// MARK: - Habit Note
+struct HabitNote: Identifiable, Codable, Equatable {
+    let id: UUID
+    var content: String
+    var date: Date
+    var habitId: UUID? // Optional - can be a general note
+    var tags: [String]
+    var createdAt: Date
+    var updatedAt: Date
+    
+    init(content: String, date: Date = Date(), habitId: UUID? = nil, tags: [String] = []) {
+        self.id = UUID()
+        self.content = content
+        self.date = date
+        self.habitId = habitId
+        self.tags = tags
+        self.createdAt = Date()
+        self.updatedAt = Date()
+    }
+    
+    var wordCount: Int {
+        return content.split(separator: " ").count
+    }
+    
+    var preview: String {
+        let maxLength = 100
+        if content.count <= maxLength {
+            return content
+        }
+        return String(content.prefix(maxLength)) + "..."
+    }
 }

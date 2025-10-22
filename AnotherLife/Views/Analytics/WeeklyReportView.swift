@@ -551,7 +551,7 @@ struct SummaryCardView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.backgroundGray)
+                .fill(Color.background)
         )
     }
 }
@@ -593,7 +593,7 @@ struct StreakItemView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.backgroundGray)
+                .fill(Color.background)
         )
     }
 }
@@ -634,7 +634,7 @@ struct SkippedHabitView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.backgroundGray)
+                .fill(Color.background)
         )
     }
 }

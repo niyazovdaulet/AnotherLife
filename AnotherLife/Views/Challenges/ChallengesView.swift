@@ -18,35 +18,44 @@ struct ChallengesView: View {
     @State private var completionPoints = 0
     @State private var showingJoinSuccessAlert = false
     @State private var joinSuccessMessage = ""
-    @State private var selectedCategory: ChallengeType? = nil
     @State private var showingAllChallenges = false
+    @State private var isCompletedChallengesExpanded = false
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header
+                // Header (includes integrated tab selector)
                 headerView
                 
-                // Tab Selector
-                tabSelectorView
-                
-                // Content
+                // Content with enhanced animations
                 TabView(selection: $selectedTab) {
                     // My Challenges
                     myChallengesView
                         .tag(0)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .leading)),
+                            removal: .opacity.combined(with: .move(edge: .trailing))
+                        ))
                     
                     // Discover
                     discoverView
                         .tag(1)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .trailing)),
+                            removal: .opacity.combined(with: .move(edge: .leading))
+                        ))
                     
                     // Leaderboard
                     leaderboardView
                         .tag(2)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .bottom)),
+                            removal: .opacity.combined(with: .move(edge: .top))
+                        ))
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                .animation(.easeInOut(duration: 0.25), value: selectedTab)
             }
-            .navigationTitle("Challenges")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -93,92 +102,282 @@ struct ChallengesView: View {
         } message: {
             Text(completionMessage)
         }
-        .alert("Success! 🎉", isPresented: $showingJoinSuccessAlert) {
-            Button("Great!") {
-                showingJoinSuccessAlert = false
+        .overlay(
+            // Luxury Join Success Alert
+            Group {
+                if showingJoinSuccessAlert {
+                    LuxuryJoinSuccessAlert(
+                        isPresented: $showingJoinSuccessAlert,
+                        message: joinSuccessMessage
+                    )
+                }
             }
-        } message: {
-            Text(joinSuccessMessage)
-        }
+        )
     }
     
     // MARK: - Header View
     private var headerView: some View {
-        VStack(spacing: 16) {
-            // User Stats
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Time to x!")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.textPrimary)
-                    
-                    Text(authManager.currentUser?.displayName ?? "User")
-                        .font(.subheadline)
-                        .foregroundColor(.textSecondary)
-                }
-                
-                Spacer()
-                
-                // Points and Level
-                VStack(alignment: .trailing, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.yellow)
-                        Text("\(authManager.currentUser?.totalPoints ?? 0)")
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .foregroundColor(.textPrimary)
+        VStack(spacing: 0) {
+            // Premium Profile Summary Card
+            VStack(spacing: 20) {
+                // User Profile Section
+                HStack(spacing: 16) {
+                    // Enhanced Profile Avatar
+                    ZStack {
+                        // Glow effect
+                        Circle()
+                            .fill(Color.primaryGradient)
+                            .frame(width: 56, height: 56)
+                            .blur(radius: 8)
+                            .opacity(0.3)
+                        
+                        // Main avatar
+                        Circle()
+                            .fill(Color.primaryGradient)
+                            .frame(width: 48, height: 48)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                            )
+                        
+                        Text(String(authManager.currentUser?.displayName.first ?? "U"))
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
                     }
                     
-                    Text("Level \(authManager.currentUser?.level ?? 1)")
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
+                    // User Info
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(authManager.currentUser?.displayName ?? "User")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        
+                        Text("Growing Consistency 🌱")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    
+                    Spacer()
+                    
+                    // Enhanced Stats Display
+                    VStack(spacing: 16) {
+                        // Points with XP Bar
+                        VStack(alignment: .trailing, spacing: 6) {
+                            HStack(spacing: 8) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.primaryOrange.opacity(0.2))
+                                        .frame(width: 32, height: 32)
+                                    
+                                    Image(systemName: "star.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(.primaryOrange)
+                                }
+                                
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(authManager.currentUser?.totalPoints ?? 0)")
+                                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                                        .foregroundColor(.white)
+                                    
+//                                    Text("XP")
+//                                        .font(.system(size: 11, weight: .semibold))
+//                                        .foregroundColor(.white.opacity(0.7))
+                                }
+                            }
+                            
+                            // XP Progress Bar
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.white.opacity(0.2))
+                                        .frame(height: 6)
+                                    
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.primaryOrange)
+                                        .frame(width: geometry.size.width * 0.7, height: 6)
+                                        .animation(.easeInOut(duration: 1.0), value: authManager.currentUser?.totalPoints)
+                                }
+                            }
+                            .frame(height: 6)
+                            .frame(width: 80)
+                        }
+                        
+                        // Level with Streak
+                        VStack(alignment: .trailing, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "crown.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.primaryOrange)
+                                
+                                Text("Level \(authManager.currentUser?.level ?? 1)")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            HStack(spacing: 4) {
+                                Image(systemName: "flame.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.primaryOrange)
+                                
+                                Text("5-day streak")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                        }
+                    }
                 }
+                
+                // Enhanced Tab Selector with Icons
+                enhancedTabSelector
+                
+                // Micro-info below tabs for context
+                tabContextInfo
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16) // Further reduced for tighter spacing
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.primaryBlue.opacity(0.8),
+                                Color.primaryPurple.opacity(0.6),
+                                Color.primaryIndigo.opacity(0.8)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(
+                        color: .primaryBlue.opacity(0.3),
+                        radius: 20,
+                        x: 0,
+                        y: 10
+                    )
+            )
             .padding(.horizontal, 20)
-            .padding(.top, 10)
         }
+        .padding(.top, 10)
+        .padding(.bottom, 20) // Add breathing room below header
     }
     
-    // MARK: - Tab Selector View
-    private var tabSelectorView: some View {
+    // MARK: - Premium Capsule Tab Selector
+    private var enhancedTabSelector: some View {
         HStack(spacing: 0) {
             ForEach(0..<3) { index in
-                Button(action: { selectedTab = index }) {
-                    VStack(spacing: 8) {
-                        Text(tabTitles[index])
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(selectedTab == index ? .primaryBlue : .textSecondary)
-                        
-                        Rectangle()
-                            .fill(selectedTab == index ? Color.primaryBlue : Color.clear)
-                            .frame(height: 2)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PlainButtonStyle())
+                capsuleTabButton(for: index)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 25)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 25)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                )
+                .shadow(
+                    color: .black.opacity(0.15),
+                    radius: 15,
+                    x: 0,
+                    y: 8
+                )
+        )
+        .padding(.horizontal, -20)
+        .offset(y: -4)
+    }
+    
+    private func capsuleTabButton(for index: Int) -> some View {
+        Button(action: { 
+            // Haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+            
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                selectedTab = index
+            }
+        }) {
+            HStack(spacing: 6) {
+                Image(systemName: tabIcons[index])
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(selectedTab == index ? .white : .white.opacity(0.6))
+                
+                Text(tabTitles[index])
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(selectedTab == index ? .white : .white.opacity(0.6))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 12)
+            .background(
+                ZStack {
+                    // Selected state background
+                    if selectedTab == index {
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.primaryBlue.opacity(0.9),
+                                        Color.primaryPurple.opacity(0.7)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .shadow(
+                                color: .primaryBlue.opacity(0.4),
+                                radius: 8,
+                                x: 0,
+                                y: 4
+                            )
+                    }
+                }
+            )
+            .scaleEffect(selectedTab == index ? 1.02 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedTab)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var tabIcons: [String] {
+        ["flag.fill", "globe", "trophy.fill"]
     }
     
     private var tabTitles: [String] {
         ["My Challenges", "Discover", "Leaderboard"]
     }
     
+    // MARK: - Tab Context Info
+    private var tabContextInfo: some View {
+        HStack {
+            Spacer()
+            
+            Text(contextText)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white.opacity(0.7))
+                .animation(.easeInOut(duration: 0.3), value: selectedTab)
+            
+            Spacer()
+        }
+        .padding(.top, 0) // Removed padding to minimize space
+    }
+    
+    private var contextText: String {
+        switch selectedTab {
+        case 0:
+            return "\(challengeManager.activeChallenges.count) Active Challenges"
+        case 1:
+            return "Popular this week"
+        case 2:
+            return "Top performers"
+        default:
+            return ""
+        }
+    }
+    
     // MARK: - Computed Properties
     
     private var filteredChallenges: [Challenge] {
-        let challenges = challengeManager.availablePublicChallenges
-        
-        if let selectedCategory = selectedCategory {
-            return challenges.filter { $0.type == selectedCategory }
-        } else {
-            return challenges
-        }
+        return challengeManager.availablePublicChallenges
     }
     
     // MARK: - My Challenges View
@@ -233,13 +432,23 @@ struct ChallengesView: View {
                                 showingJoinSuccessAlert: $showingJoinSuccessAlert,
                                 joinSuccessMessage: $joinSuccessMessage
                             )
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity.combined(with: .move(edge: .bottom))
+                            ))
                         }
+                        .animation(.easeInOut(duration: 0.3), value: challengeManager.activeChallenges.map(\.id))
                     }
                     .padding(.horizontal, 20)
                     
                     // Completed Challenges
                     if !challengeManager.completedChallenges.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    isCompletedChallengesExpanded.toggle()
+                                }
+                            }) {
                             HStack {
                                 Text("Completed")
                                     .font(.headline)
@@ -258,9 +467,18 @@ struct ChallengesView: View {
                                         Capsule()
                                             .fill(Color.primaryGreen.opacity(0.1))
                                     )
+                                    
+                                    Image(systemName: isCompletedChallengesExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.caption)
+                                        .foregroundColor(.textSecondary)
+                                        .rotationEffect(.degrees(isCompletedChallengesExpanded ? 0 : 0))
+                                        .animation(.easeInOut(duration: 0.3), value: isCompletedChallengesExpanded)
+                                }
                             }
+                            .buttonStyle(PlainButtonStyle())
                             
-                            // Completed Challenges
+                            // Completed Challenges (collapsible)
+                            if isCompletedChallengesExpanded {
                             ForEach(challengeManager.completedChallenges, id: \.id) { challenge in
                                 ChallengeCardView(
                                     challenge: challenge, 
@@ -271,6 +489,7 @@ struct ChallengesView: View {
                                     showingJoinSuccessAlert: $showingJoinSuccessAlert,
                                     joinSuccessMessage: $joinSuccessMessage
                                 )
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -285,39 +504,11 @@ struct ChallengesView: View {
     private var discoverView: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
-                // Categories
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Categories")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.textPrimary)
-                        .padding(.horizontal, 20)
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            // All Categories button
-                            CategoryChipView(
-                                type: nil, 
-                                isSelected: selectedCategory == nil,
-                                onTap: { selectedCategory = nil }
-                            )
-                            
-                            ForEach(ChallengeType.allCases, id: \.self) { type in
-                                CategoryChipView(
-                                    type: type, 
-                                    isSelected: selectedCategory == type,
-                                    onTap: { selectedCategory = type }
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                    }
-                }
                 
                 // Trending Challenges
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text(selectedCategory?.displayName ?? "All Challenges")
+                        Text("All Challenges")
                             .font(.headline)
                             .fontWeight(.bold)
                             .foregroundColor(.textPrimary)
@@ -349,7 +540,6 @@ struct ChallengesView: View {
         }
         .sheet(isPresented: $showingAllChallenges) {
             AllChallengesView(
-                selectedCategory: selectedCategory,
                 showingCompletionAlert: $showingCompletionAlert,
                 completionMessage: $completionMessage,
                 completionPoints: $completionPoints,
@@ -548,27 +738,6 @@ struct ChallengesView: View {
                             
                             Spacer()
                             
-//                            Button(action: {
-//                                Task {
-//                                    await leaderboardManager.refreshLeaderboard()
-//                                }
-//                            })
-//                                {
-//                                HStack(spacing: 4) {
-//                                    Image(systemName: "arrow.clockwise")
-//                                        .font(.caption)
-//                                    Text("Siu")
-//                                        .font(.caption)
-//                                        .fontWeight(.medium)
-//                                }
-//                                .foregroundColor(.primaryBlue)
-//                                .padding(.horizontal, 12)
-//                                .padding(.vertical, 6)
-//                                .background(
-//                                    Capsule()
-//                                        .fill(Color.primaryBlue.opacity(0.1))
-//                                )
-//                            }
                         }
                         .padding(.horizontal, 20)
                         
@@ -644,6 +813,8 @@ struct ChallengeCardView: View {
     @State private var showCelebration = false
     @State private var celebrationMessage = ""
     @State private var celebrationPoints = 0
+    @State private var showCheckInFeedback = false
+    @State private var todayDailyStatus: DailyStatus = .notStarted
     
     // Parent view state bindings for alerts
     @Binding var showingCompletionAlert: Bool
@@ -671,8 +842,8 @@ struct ChallengeCardView: View {
             return false
         }
         
-        // This would ideally check the actual daily status, but for now use progress > 0
-        // In a real implementation, you'd check the daily status for today specifically
+        // For now, use a simple check based on currentValue
+        // In a real implementation, you'd check the actual daily status for today
         return progress.currentValue > 0
     }
     
@@ -682,13 +853,69 @@ struct ChallengeCardView: View {
         return progress.status == .completed
     }
     
+    // Get today's daily status - properly implemented using actual daily status
+    private var todayStatus: DailyStatus {
+        guard let progress = progress else { return .notStarted }
+        
+        // For completed challenges, return completed
+        if progress.status == .completed {
+            return .completed
+        }
+        
+        // For ended challenges, return not started
+        if challenge.endDate <= Date() {
+            return .notStarted
+        }
+        
+        // Return the actual daily status for today
+        return todayDailyStatus
+    }
+    
+    // Status indicator for the challenge card
+    private var statusIndicator: some View {
+        Group {
+            switch todayStatus {
+            case .completed:
+                ZStack {
+                    Circle()
+                        .fill(Color.successGradient)
+                        .frame(width: 24, height: 24)
+                    
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            case .skipped:
+                ZStack {
+                    Circle()
+                        .fill(Color.warningGradient)
+                        .frame(width: 24, height: 24)
+                    
+                    Image(systemName: "minus")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            case .notStarted:
+                ZStack {
+                    Circle()
+                        .stroke(Color.separator, lineWidth: 2)
+                        .frame(width: 24, height: 24)
+                    
+                    Circle()
+                        .fill(Color.separator)
+                        .frame(width: 8, height: 8)
+                }
+            }
+        }
+    }
+    
     // Check if user can undo today's check-in (same day only)
     private var canUndoToday: Bool {
         // Only allow undo if:
-        // 1. They checked in today
+        // 1. They checked in today (completed or skipped)
         // 2. The challenge is still active (not completed)
         // 3. The challenge hasn't ended
-        guard hasCheckedInToday else { return false }
+        guard todayStatus == .completed || todayStatus == .skipped else { return false }
         guard let progress = progress else { return false }
         
         // Don't allow undo for completed challenges
@@ -717,147 +944,303 @@ struct ChallengeCardView: View {
     }
     
     // Period chip
-    private var periodChip: String {
-        let days = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
-        if days <= 7 {
-            return "Week"
-        } else if days <= 30 {
-            return "Month"
-        } else {
-            return "Long-term"
-        }
-    }
+//    private var periodChip: String {
+//        let days = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
+//        if days <= 7 {
+//            return "Week"
+//        } else if days <= 30 {
+//            return "Month"
+//        } else {
+//            return "Long-term"
+//        }
+//    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Header with title and type icon
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
+            headerView
+            infoRowView
+            progressView
+            actionButtonsView
+        }
+        .padding(20)
+        .background(enhancedCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(
+            color: .black.opacity(0.12),
+            radius: 16,
+            x: 0,
+            y: 8
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.primaryBlue.opacity(0.3),
+                            Color.primaryPurple.opacity(0.2)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .onTapGesture {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                showingDetail = true
+            }
+        }
+        .scaleEffect(1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showingDetail)
+        .fullScreenCover(isPresented: $showingDetail) {
+            ChallengeDetailView(challenge: challenge)
+        }
+        .sheet(isPresented: $showingPreview) {
+            ChallengePreviewView(challenge: challenge)
+        }
+        .overlay(checkInFeedbackOverlay)
+        .overlay(celebrationOverlay)
+        .onAppear {
+            loadTodayStatus()
+        }
+        .task(id: progress?.lastUpdatedAt) {
+            // Refresh daily status whenever progress is updated
+            loadTodayStatus()
+        }
+        .onChange(of: progress?.currentValue) { _ in
+            // Refresh daily status when progress changes
+            loadTodayStatus()
+        }
+        .onChange(of: progress?.lastUpdatedAt) { _ in
+            // Refresh daily status when progress is updated
+            loadTodayStatus()
+        }
+        .onChange(of: showingDetail) { isShowing in
+            // Refresh daily status when returning from detail view
+            if !isShowing {
+                loadTodayStatus()
+            }
+        }
+    }
+    
+    private var enhancedCardBackground: some View {
+        ZStack {
+            // Base background
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.cardBackground)
+            
+            // Subtle gradient overlay
+            RoundedRectangle(cornerRadius: 20)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.02),
+                            Color.primaryBlue.opacity(0.01)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        }
+    }
+    
+    private var headerView: some View {
+        HStack(alignment: .top, spacing: 16) {
+            // Challenge Icon/Emoji
+            ZStack {
+                Circle()
+                    .fill(challengeIconBackground)
+                    .frame(width: 40, height: 40)
+                
+                Text(challengeIcon)
+                    .font(.system(size: 20))
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
                     Text(challenge.title)
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundColor(.textPrimary)
                         .lineLimit(1)
                     
                     Text(challenge.description)
-                        .font(.subheadline)
+                    .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.textSecondary)
                         .lineLimit(2)
+                    .lineSpacing(2)
                 }
                 
                 Spacer()
                 
-                // Type Icon
-                Image(systemName: challenge.type.icon)
-                    .font(.title2)
-                    .foregroundColor(.primaryBlue)
+            // Enhanced Status Indicator
+            if !isCompletedChallenge && challenge.endDate > Date() {
+                statusIndicator
             }
-            
-            // At-a-glance info row
-            HStack(spacing: 12) {
-                // Period chip
-                Text(periodChip)
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(Color.primaryBlue.opacity(0.1))
-                    )
-                    .foregroundColor(.primaryBlue)
-                
+        }
+    }
+    
+    private var challengeIcon: String {
+        // Add challenge type icons based on title/content
+        let title = challenge.title.lowercased()
+        if title.contains("reading") || title.contains("book") {
+            return "📖"
+        } else if title.contains("fitness") || title.contains("exercise") || title.contains("workout") {
+            return "🏃‍♂️"
+        } else if title.contains("water") || title.contains("drink") {
+            return "💧"
+        } else if title.contains("sleep") || title.contains("bed") {
+            return "😴"
+        } else if title.contains("meditation") || title.contains("mindfulness") {
+            return "🧘‍♀️"
+        } else if title.contains("study") || title.contains("learn") {
+            return "📚"
+        } else {
+            return "🎯"
+        }
+    }
+    
+    private var challengeIconBackground: LinearGradient {
+        let title = challenge.title.lowercased()
+        if title.contains("reading") || title.contains("book") {
+            return LinearGradient(colors: [Color.primaryBlue.opacity(0.2), Color.primaryTeal.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else if title.contains("fitness") || title.contains("exercise") || title.contains("workout") {
+            return LinearGradient(colors: [Color.primaryRed.opacity(0.2), Color.primaryOrange.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else if title.contains("water") || title.contains("drink") {
+            return LinearGradient(colors: [Color.primaryTeal.opacity(0.2), Color.primaryBlue.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else if title.contains("sleep") || title.contains("bed") {
+            return LinearGradient(colors: [Color.primaryPurple.opacity(0.2), Color.primaryIndigo.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else if title.contains("meditation") || title.contains("mindfulness") {
+            return LinearGradient(colors: [Color.primaryGreen.opacity(0.2), Color.primaryTeal.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else if title.contains("study") || title.contains("learn") {
+            return LinearGradient(colors: [Color.primaryOrange.opacity(0.2), Color.primaryYellow.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else {
+            return LinearGradient(colors: [Color.primaryBlue.opacity(0.2), Color.primaryPurple.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+    
+    private var infoRowView: some View {
+        HStack(spacing: 12) {
                 // Duration
                 let duration = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
                 Text("\(duration) days")
-                    .font(.caption)
-                    .fontWeight(.medium)
+                .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.textSecondary)
                 
-                // Members (mini avatar stack)
-                if challenge.privacy == .publicChallenge {
-                    HStack(spacing: -4) {
-                        ForEach(0..<min(challenge.memberCount, 3), id: \.self) { _ in
-                            Circle()
-                                .fill(Color.primaryBlue.opacity(0.7))
-                                .frame(width: 16, height: 16)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white, lineWidth: 1)
-                                )
-                        }
-                        if challenge.memberCount > 3 {
-                            Text("+\(challenge.memberCount - 3)")
-                                .font(.caption2)
+            // Members count (simplified)
+            if challenge.privacy == .publicChallenge && challenge.memberCount > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.textTertiary)
+                    
+                    Text("\(challenge.memberCount)")
+                        .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.textSecondary)
-                        }
                     }
                 }
                 
                 Spacer()
                 
-                // Time remaining
+            // Time remaining (simplified)
                 Text(timeRemaining)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(timeRemaining == "Ended" ? .red : .textSecondary)
-            }
-            
-            // Progress ring
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(timeRemaining == "Ended" ? .primaryRed : .textSecondary)
+        }
+    }
+    
+    private var progressView: some View {
+        VStack(spacing: 12) {
+            // Progress Header
             HStack {
-                // Compact progress ring
-                ZStack {
-                    Circle()
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 3)
-                        .frame(width: 40, height: 40)
-                    
                     let currentProgress = progress?.currentValue ?? 0
                     let challengeDuration = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 1
-                    let progressPercentage = challengeDuration > 0 ? Double(currentProgress) / Double(challengeDuration) : 0.0
-                    
-                    Circle()
-                        .trim(from: 0, to: min(progressPercentage, 1.0))
-                        .stroke(
-                            progressPercentage >= 1.0 ? Color.primaryGreen : Color.primaryBlue,
-                            style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                        )
-                        .frame(width: 40, height: 40)
-                        .rotationEffect(.degrees(-90))
-                    
-                    Text("\(currentProgress)")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.textPrimary)
-                }
                 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Progress")
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
-                    
-                    let duration = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 0
-                    Text("\(duration) days")
-                        .font(.caption2)
-                        .foregroundColor(.textSecondary)
-                }
+                Text("\(currentProgress)/\(challengeDuration)")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.textPrimary)
                 
                 Spacer()
                 
-                // Points
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .font(.caption)
-                        .foregroundColor(.yellow)
+                // Points with animation
+                HStack(spacing: 6) {
+                    ZStack {
+                    Circle()
+                            .fill(Color.primaryOrange.opacity(0.2))
+                            .frame(width: 24, height: 24)
+                        
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.primaryOrange)
+                    }
+                    
                     Text("\(challenge.pointsReward)")
-                        .font(.caption)
-                        .fontWeight(.medium)
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.textPrimary)
                 }
             }
             
-            // Primary CTA row
+            // Enhanced Progress Bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.separator.opacity(0.3))
+                        .frame(height: 12)
+                    
+                    // Progress fill with status-based colors
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(progressBarColor)
+                        .frame(width: geometry.size.width * min(progressPercentage, 1.0), height: 12)
+                        .animation(.easeInOut(duration: 1.0), value: progress?.currentValue)
+                    
+                    // Glow effect for active progress
+                    if progressPercentage > 0 && progressPercentage < 1.0 {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(progressBarColor.opacity(0.3))
+                            .frame(width: geometry.size.width * min(progressPercentage, 1.0), height: 12)
+                            .blur(radius: 4)
+                    }
+                }
+            }
+            .frame(height: 12)
+        }
+    }
+    
+    private var progressPercentage: Double {
+        let currentProgress = progress?.currentValue ?? 0
+        let challengeDuration = Calendar.current.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 1
+        return challengeDuration > 0 ? Double(currentProgress) / Double(challengeDuration) : 0.0
+    }
+    
+    private var progressBarColor: LinearGradient {
+        let percentage = progressPercentage
+        
+        if percentage >= 1.0 {
+            // Completed - Green
+            return LinearGradient(colors: [Color.primaryGreen, Color.success], startPoint: .leading, endPoint: .trailing)
+        } else if percentage >= 0.8 {
+            // Nearly done - Gold
+            return LinearGradient(colors: [Color.primaryOrange, Color.primaryYellow], startPoint: .leading, endPoint: .trailing)
+        } else if percentage >= 0.5 {
+            // Good progress - Blue to Purple
+            return LinearGradient(colors: [Color.primaryBlue, Color.primaryPurple], startPoint: .leading, endPoint: .trailing)
+        } else {
+            // Early stage - Blue
+            return LinearGradient(colors: [Color.primaryBlue, Color.primaryTeal], startPoint: .leading, endPoint: .trailing)
+        }
+    }
+    
+    private var actionButtonsView: some View {
             HStack(spacing: 12) {
                 if isMyChallenge {
+                myChallengeButtons
+            } else {
+                discoverButtons
+            }
+        }
+    }
+    
+    private var myChallengeButtons: some View {
+        Group {
                     // My Challenges: Open + Check-in
                     Button(action: { showingDetail = true }) {
                         HStack(spacing: 6) {
@@ -877,143 +1260,202 @@ struct ChallengeCardView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     
-                    if !hasCheckedInToday && !isCompletedChallenge {
-                        Button(action: { 
-                            Task {
-                                await performQuickCheckIn()
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                if isCheckingIn {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                        .foregroundColor(.primaryBlue)
-                                } else {
-                                    Image(systemName: "checkmark.circle")
-                                        .font(.caption)
-                                }
-                                Text(isCheckingIn ? "Checking in..." : "Check-in")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                            }
-                            .foregroundColor(.primaryBlue)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .stroke(Color.primaryBlue, lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .disabled(isCheckingIn)
-                    } else if hasCheckedInToday && canUndoToday {
-                        // Show undo button for today's check-in
-                        Button(action: { 
-                            Task {
-                                await undoTodayCheckIn()
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                if isUndoing {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                        .foregroundColor(.orange)
-                                } else {
-                                    Image(systemName: "arrow.uturn.backward.circle")
-                                        .font(.caption)
-                                }
-                                Text(isUndoing ? "Undoing..." : "Undo")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                            }
-                            .foregroundColor(.orange)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .stroke(Color.orange, lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .disabled(isUndoing)
-                    }
-                } else {
-                    // Discover: Join + Preview
-                    Button(action: {
-                        Task {
-                            isJoining = true
-                            let success = if progress != nil {
-                                await challengeManager.leaveChallenge(challenge)
-                            } else {
-                                await challengeManager.joinChallenge(challenge)
-                            }
-                            
-                            if success {
-                                // Haptic feedback
-                                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                                impactFeedback.impactOccurred()
-                                
-                                // Show success alert for joining
-                                if progress == nil {
-                                    await MainActor.run {
-                                        self.joinSuccessMessage = "Successfully joined '\(challenge.title)'! It's now added to My Challenges tab."
-                                        self.showingJoinSuccessAlert = true
-                                    }
-                                }
-                            }
-                            isJoining = false
-                        }
-                    }) {
-                        HStack(spacing: 6) {
-                            if isJoining {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .foregroundColor(.white)
-                            } else {
-                                Image(systemName: progress != nil ? "minus.circle.fill" : "plus.circle.fill")
-                                    .font(.caption)
-                            }
-                            Text(progress != nil ? "Leave" : "Join")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(progress != nil ? Color.red : Color.primaryBlue)
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .disabled(isJoining)
-                    
-                    Button(action: { showingPreview = true }) {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.title3)
-                            .foregroundColor(.textSecondary)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
+            // Show appropriate button based on today's status
+            if todayStatus == .notStarted && !isCompletedChallenge {
+                checkInButton
+            } else if (todayStatus == .completed || todayStatus == .skipped) && canUndoToday {
+                undoButton
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-        )
-        .onTapGesture {
-            showingDetail = true
+    }
+    
+    private var discoverButtons: some View {
+        Group {
+            // Discover: Join + Preview
+            Button(action: {
+                Task {
+                    isJoining = true
+                    let wasJoined = progress != nil
+                    let success = if wasJoined {
+                        await challengeManager.leaveChallenge(challenge)
+                    } else {
+                        await challengeManager.joinChallenge(challenge)
+                    }
+                    
+                    await MainActor.run {
+                        isJoining = false
+                        
+                        if success {
+                            // Haptic feedback
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                            impactFeedback.impactOccurred()
+                            
+                            // Show success alert for joining
+                            if !wasJoined {
+                                self.joinSuccessMessage = "Successfully joined '\(challenge.title)'! It's now added to My Challenges tab."
+                                self.showingJoinSuccessAlert = true
+                            }
+                        }
+                    }
+                }
+            }) {
+                HStack(spacing: 6) {
+                    if isJoining {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .foregroundColor(.white)
+                    } else {
+                        Image(systemName: progress != nil ? "minus.circle.fill" : "plus.circle.fill")
+                            .font(.caption)
+                    }
+                    Text(progress != nil ? "Leave" : "Join")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(progress != nil ? Color.red : Color.primaryBlue)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            .disabled(isJoining)
+            
+            Button(action: { showingPreview = true }) {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+                    .foregroundColor(.textSecondary)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
-        .fullScreenCover(isPresented: $showingDetail) {
-            ChallengeDetailView(challenge: challenge)
+    }
+    
+    private var checkInButton: some View {
+        Button(action: { 
+            // Haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+            impactFeedback.impactOccurred()
+            
+            Task {
+                await performQuickCheckIn()
+            }
+        }) {
+            HStack(spacing: 6) {
+                if isCheckingIn {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .foregroundColor(.white)
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .scaleEffect(1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isCheckingIn)
+                }
+                Text(isCheckingIn ? "Checking in..." : "Check-in")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.primaryGreen)
+                    .shadow(color: .primaryGreen.opacity(0.3), radius: 8, x: 0, y: 4)
+            )
+            .scaleEffect(isCheckingIn ? 0.95 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isCheckingIn)
         }
-        .sheet(isPresented: $showingPreview) {
-            ChallengePreviewView(challenge: challenge)
+        .buttonStyle(PlainButtonStyle())
+        .disabled(isCheckingIn)
+    }
+    
+    private var undoButton: some View {
+        Button(action: { 
+            // Haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+            
+            Task {
+                await undoTodayCheckIn()
+            }
+        }) {
+            HStack(spacing: 6) {
+                if isUndoing {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .foregroundColor(.white)
+                } else {
+                    Image(systemName: "arrow.uturn.backward.circle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .scaleEffect(1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isUndoing)
+                }
+                Text(isUndoing ? "Undoing..." : "Undo")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.primaryOrange)
+                    .shadow(color: .primaryOrange.opacity(0.3), radius: 8, x: 0, y: 4)
+            )
+            .scaleEffect(isUndoing ? 0.95 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isUndoing)
         }
-        .overlay(
-            // Celebration overlay
+        .buttonStyle(PlainButtonStyle())
+        .disabled(isUndoing)
+    }
+    
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(Color.cardBackground)
+            .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+    }
+    
+    private var checkInFeedbackOverlay: some View {
+        Group {
+            if showCheckInFeedback {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                                .scaleEffect(1.0)
+                                .animation(.spring(response: 0.4, dampingFraction: 0.6), value: showCheckInFeedback)
+                            
+                            Text("Checked in!")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(
+                            Capsule()
+                                .fill(Color.primaryGreen)
+                                .shadow(color: .primaryGreen.opacity(0.4), radius: 12, x: 0, y: 6)
+                        )
+                        .scaleEffect(showCheckInFeedback ? 1.0 : 0.8)
+                        .opacity(showCheckInFeedback ? 1.0 : 0.0)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.7), value: showCheckInFeedback)
+                        Spacer()
+                    }
+                    .padding(.bottom, 20)
+                }
+                .zIndex(1000)
+            }
+        }
+    }
+    
+    private var celebrationOverlay: some View {
             Group {
                 if showCelebration {
                     Color.black.opacity(0.3)
@@ -1034,7 +1476,6 @@ struct ChallengeCardView: View {
                         }
                 }
             }
-        )
     }
     
     private func performQuickCheckIn() async {
@@ -1060,6 +1501,19 @@ struct ChallengeCardView: View {
                 let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                 impactFeedback.impactOccurred()
                 
+                // Update today's status
+                todayDailyStatus = .completed
+                
+                // Show check-in feedback
+                showCheckInFeedback = true
+                
+                // Hide feedback after 2 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showCheckInFeedback = false
+                    }
+                }
+                
                 // Check for milestones and show celebration
                 checkForMilestones()
             }
@@ -1072,7 +1526,7 @@ struct ChallengeCardView: View {
         
         isUndoing = true
         
-        // Update daily status to not started
+        // Update daily status to not started (works for both completed and skipped)
         let statusSaved = await challengeManager.updateDailyStatus(challenge.id, status: .notStarted)
         
         // Update challenge progress (will automatically recalculate from daily statuses)
@@ -1086,8 +1540,23 @@ struct ChallengeCardView: View {
                 // Haptic feedback
                 let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                 impactFeedback.impactOccurred()
+                
+                // Update today's status
+                todayDailyStatus = .notStarted
+                
+                print("✅ ChallengeCardView: Successfully undone today's status for \(challenge.title)")
             }
             isUndoing = false
+        }
+    }
+    
+    private func loadTodayStatus() {
+        Task {
+            let status = await challengeManager.getDailyStatus(challenge.id)
+            await MainActor.run {
+                print("🔄 ChallengeCardView: Loading daily status for \(challenge.title) - Status: \(status.rawValue)")
+                todayDailyStatus = status
+            }
         }
     }
     
@@ -1116,24 +1585,8 @@ struct ChallengeCardView: View {
                 }
             }
         }
-        // Check for streak milestones (every 3 days)
-        else if newValue % 3 == 0 && newValue > 0 {
-            celebrationMessage = "\(newValue) Day Streak! 🔥"
-            celebrationPoints = 10
-            showCelebration = true
-        }
-        // Check for halfway point
-        else if newValue == duration / 2 {
-            celebrationMessage = "Halfway There! 💪"
-            celebrationPoints = 5
-            showCelebration = true
-        }
-        // Check for first completion
-        else if newValue == 1 {
-            celebrationMessage = "Great Start! 🚀"
-            celebrationPoints = 2
-            showCelebration = true
-        }
+        // Removed intermediate milestone celebrations (streak, halfway, first completion)
+        // Only show celebrations for full challenge completion
         
         // Hide celebration after 2 seconds
         if showCelebration {
@@ -1263,39 +1716,6 @@ struct ChallengePreviewView: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Category Chip View
-struct CategoryChipView: View {
-    let type: ChallengeType?
-    let isSelected: Bool
-    let onTap: () -> Void
-    
-    init(type: ChallengeType?, isSelected: Bool = false, onTap: @escaping () -> Void = {}) {
-        self.type = type
-        self.isSelected = isSelected
-        self.onTap = onTap
-    }
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 6) {
-                Image(systemName: type?.icon ?? "list.bullet")
-                    .font(.caption)
-                Text(type?.displayName ?? "All")
-                    .font(.caption)
-                    .fontWeight(.medium)
-            }
-            .foregroundColor(isSelected ? .white : .primaryBlue)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                Capsule()
-                    .fill(isSelected ? Color.primaryBlue : Color.primaryBlue.opacity(0.1))
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -1785,7 +2205,6 @@ struct LeaderboardRowView: View {
 
 // MARK: - All Challenges View
 struct AllChallengesView: View {
-    let selectedCategory: ChallengeType?
     @EnvironmentObject var challengeManager: ChallengeManager
     @Environment(\.dismiss) private var dismiss
     @Binding var showingCompletionAlert: Bool
@@ -1875,7 +2294,7 @@ struct AllChallengesView: View {
                     .padding(.bottom, 20)
                 }
             }
-            .navigationTitle(selectedCategory?.displayName ?? "All Challenges")
+            .navigationTitle("All Challenges")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -1890,10 +2309,6 @@ struct AllChallengesView: View {
     private var filteredChallenges: [Challenge] {
         var challenges = challengeManager.availablePublicChallenges
         
-        // Filter by category
-        if let selectedCategory = selectedCategory {
-            challenges = challenges.filter { $0.type == selectedCategory }
-        }
         
         // Filter by search text
         if !searchText.isEmpty {
@@ -1937,6 +2352,189 @@ struct AllChallengesView: View {
             }
         }
         .padding(.vertical, 60)
+    }
+}
+
+// MARK: - Luxury Join Success Alert
+struct LuxuryJoinSuccessAlert: View {
+    @Binding var isPresented: Bool
+    let message: String
+    
+    @State private var animationOffset: CGFloat = -100
+    @State private var animationOpacity: Double = 0
+    @State private var scaleEffect: CGFloat = 0.8
+    @State private var rotationAngle: Double = -10
+    @State private var sparkleOffset: CGFloat = -50
+    @State private var sparkleOpacity: Double = 0
+    
+    var body: some View {
+        ZStack {
+            // Background blur
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    dismissAlert()
+                }
+            
+            VStack(spacing: 0) {
+                // Main alert container
+                VStack(spacing: 24) {
+                    // Success icon with animation
+                    ZStack {
+                        // Background glow
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.primaryBlue.opacity(0.3), .primaryGreen.opacity(0.2)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 120, height: 120)
+                            .blur(radius: 20)
+                            .scaleEffect(scaleEffect * 1.2)
+                        
+                        // Main icon circle
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.primaryBlue, .primaryGreen],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                            )
+                        
+                        // Checkmark icon
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundColor(.white)
+                            .scaleEffect(scaleEffect)
+                    }
+                    .rotationEffect(.degrees(rotationAngle))
+                    
+                    // Title
+                    Text("Successfully Joined! 🎉")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundColor(.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .opacity(animationOpacity)
+                    
+                    // Message
+                    Text(message)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .opacity(animationOpacity)
+                        .padding(.horizontal, 20)
+                    
+                    // Action button
+                    Button(action: {
+                        dismissAlert()
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                            
+                            Text("Awesome!")
+                                .font(.system(size: 18, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 16)
+                        .background(
+                            LinearGradient(
+                                colors: [.primaryBlue, .primaryGreen],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .clipShape(Capsule())
+                        .shadow(color: .primaryBlue.opacity(0.4), radius: 12, x: 0, y: 6)
+                    }
+                    .scaleEffect(scaleEffect)
+                    .opacity(animationOpacity)
+                }
+                .padding(32)
+                .background(
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(Color.cardBackground)
+                        .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.primaryBlue.opacity(0.3), .primaryGreen.opacity(0.3)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .padding(.horizontal, 40)
+                .offset(y: animationOffset)
+                .opacity(animationOpacity)
+                
+                // Floating sparkles
+                ForEach(0..<6, id: \.self) { index in
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.primaryBlue)
+                        .offset(
+                            x: CGFloat.random(in: -100...100),
+                            y: sparkleOffset + CGFloat.random(in: -20...20)
+                        )
+                        .opacity(sparkleOpacity)
+                        .animation(
+                            .easeInOut(duration: 2.0)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.2),
+                            value: sparkleOffset
+                        )
+                }
+            }
+        }
+        .onAppear {
+            showAlert()
+        }
+    }
+    
+    private func showAlert() {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0)) {
+            animationOffset = 0
+            animationOpacity = 1
+            scaleEffect = 1.0
+            rotationAngle = 0
+        }
+        
+        withAnimation(.easeInOut(duration: 0.8).delay(0.3)) {
+            sparkleOffset = 50
+            sparkleOpacity = 1
+        }
+        
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+        impactFeedback.impactOccurred()
+    }
+    
+    private func dismissAlert() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) {
+            animationOffset = 100
+            animationOpacity = 0
+            scaleEffect = 0.8
+            rotationAngle = 10
+            sparkleOpacity = 0
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            isPresented = false
+        }
     }
 }
 

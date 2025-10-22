@@ -14,8 +14,7 @@ struct CreateChallengeView: View {
     
     @State private var title = ""
     @State private var description = ""
-    @State private var selectedType: ChallengeType = .streak
-    @State private var selectedPrivacy: ChallengePrivacy = .privateChallenge
+    @State private var selectedPrivacy: ChallengePrivacy = .group
     @State private var targetValue = 7
     @State private var selectedHabits: Set<String> = []
     @State private var duration = 7 // days
@@ -33,8 +32,6 @@ struct CreateChallengeView: View {
                         // Basic Info
                         basicInfoSection
                         
-                        // Challenge Type
-                        challengeTypeSection
                         
                         // Privacy Settings
                         privacySection
@@ -130,59 +127,6 @@ struct CreateChallengeView: View {
         )
     }
     
-    // MARK: - Challenge Type Section
-    private var challengeTypeSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Challenge Type")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
-            
-            VStack(spacing: 12) {
-                ForEach(ChallengeType.allCases, id: \.self) { type in
-                    Button(action: { selectedType = type }) {
-                        HStack {
-                            Image(systemName: type.icon)
-                                .font(.title2)
-                                .foregroundColor(selectedType == type ? .primaryBlue : .textSecondary)
-                                .frame(width: 30)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(type.displayName)
-                                    .font(.body)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.textPrimary)
-                                
-                                Text(typeDescription(type))
-                                    .font(.caption)
-                                    .foregroundColor(.textSecondary)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: selectedType == type ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(selectedType == type ? .primaryBlue : .textSecondary)
-                        }
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(selectedType == type ? Color.primaryBlue.opacity(0.1) : Color.cardBackground)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(selectedType == type ? Color.primaryBlue : Color.clear, lineWidth: 2)
-                                )
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
-        )
-    }
     
     // MARK: - Privacy Section
     private var privacySection: some View {
@@ -192,7 +136,7 @@ struct CreateChallengeView: View {
                 .foregroundColor(.textPrimary)
             
             HStack(spacing: 16) {
-                ForEach(ChallengePrivacy.allCases, id: \.self) { privacy in
+                ForEach([ChallengePrivacy.group, ChallengePrivacy.publicChallenge], id: \.self) { privacy in
                     Button(action: { selectedPrivacy = privacy }) {
                         VStack(spacing: 8) {
                             Image(systemName: privacyIcon(privacy))
@@ -353,25 +297,10 @@ struct CreateChallengeView: View {
     }
     
     private var targetUnit: String {
-        switch selectedType {
-        case .streak: return "days in a row"
-        case .frequency: return "times"
-        case .timeBased: return "times before 9 AM"
-        case .habitSpecific: return "times"
-        case .combination: return "days"
-        }
+        return "days"
     }
     
     // MARK: - Helper Methods
-    private func typeDescription(_ type: ChallengeType) -> String {
-        switch type {
-        case .streak: return "Complete habits for consecutive days"
-        case .frequency: return "Complete habits a certain number of times"
-        case .timeBased: return "Complete habits within specific time frames"
-        case .habitSpecific: return "Focus on specific habits"
-        case .combination: return "Mix of different habit types"
-        }
-    }
     
     private func privacyIcon(_ privacy: ChallengePrivacy) -> String {
         switch privacy {
@@ -402,7 +331,7 @@ struct CreateChallengeView: View {
             let success = await challengeManager.createChallenge(
                 title: title,
                 description: description,
-                type: selectedType,
+                type: .streak, // Default type since we removed type selection
                 privacy: selectedPrivacy,
                 targetValue: targetValue,
                 targetUnit: targetUnit,

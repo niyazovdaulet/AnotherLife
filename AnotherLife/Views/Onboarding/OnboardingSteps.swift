@@ -74,7 +74,7 @@ struct WelcomeStep: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
         }
-        .background(Color.backgroundGray.ignoresSafeArea())
+        .background(Color.background.ignoresSafeArea())
     }
 }
 
@@ -141,7 +141,7 @@ struct FocusAreasStep: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
         }
-        .background(Color.backgroundGray.ignoresSafeArea())
+        .background(Color.background.ignoresSafeArea())
     }
 }
 
@@ -245,7 +245,7 @@ struct TemplatesStep: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
         }
-        .background(Color.backgroundGray.ignoresSafeArea())
+        .background(Color.background.ignoresSafeArea())
     }
 }
 
@@ -430,7 +430,7 @@ struct RemindersStep: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
         }
-        .background(Color.backgroundGray.ignoresSafeArea())
+        .background(Color.background.ignoresSafeArea())
         .animation(.easeInOut(duration: 0.3), value: wantsReminders)
     }
 }
@@ -516,6 +516,6 @@ struct ThemeFinishStep: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
         }
-        .background(Color.backgroundGray.ignoresSafeArea())
+        .background(Color.background.ignoresSafeArea())
     }
 }

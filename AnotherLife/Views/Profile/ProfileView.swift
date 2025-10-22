@@ -5,19 +5,20 @@ struct ProfileView: View {
     @EnvironmentObject var habitManager: HabitManager
     @State private var showingSettings = false
     @State private var showingEditProfile = false
+    @State private var showingWeeklyReport = false
     
     var body: some View {
         NavigationView {
             ZStack {
                 // Background
-                Color.backgroundGray
+                Color.background
                     .ignoresSafeArea()
                 
                 // Subtle gradient overlay for depth
                 LinearGradient(
                     gradient: Gradient(colors: [
-                        Color.backgroundGray,
-                        Color.backgroundGray.opacity(0.8)
+                        Color.background,
+                        Color.background.opacity(0.8)
                     ]),
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -31,6 +32,9 @@ struct ProfileView: View {
                         
                         // Stats Overview
                         statsOverviewView
+                        
+                        // Weekly Report & Analytics
+                        weeklyReportSection
                         
                         // Quick Actions
                         quickActionsView
@@ -61,6 +65,10 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingEditProfile) {
             EditProfileView()
+        }
+        .sheet(isPresented: $showingWeeklyReport) {
+            WeeklyReportView()
+                .environmentObject(habitManager)
         }
     }
     
@@ -184,6 +192,146 @@ struct ProfileView: View {
                     icon: "calendar",
                     color: .purple
                 )
+            }
+        }
+    }
+    
+    // MARK: - Weekly Report Section
+    private var weeklyReportSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text("Performance Report")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.textPrimary)
+                
+                Spacer()
+            }
+            
+            // Weekly Report Button
+            Button(action: { showingWeeklyReport = true }) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "chart.bar.doc.horizontal.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                            
+                            Text("Weekly Report")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                        }
+                        
+                        Text("Detailed insights and progress")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                }
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.primaryBlue, Color.purple]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .shadow(color: .primaryBlue.opacity(0.3), radius: 12, x: 0, y: 6)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Quick Analytics Cards
+            VStack(spacing: 12) {
+                // Completion Rate Chart
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .foregroundColor(.primaryGreen)
+                        Text("This Week's Performance")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.textPrimary)
+                        
+                        Spacer()
+                        
+                        Text("\(String(format: "%.0f", weeklyCompletionRate))%")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primaryGreen)
+                    }
+                    
+                    ProgressView(value: weeklyCompletionRate / 100)
+                        .progressViewStyle(LinearProgressViewStyle(tint: .primaryGreen))
+                        .scaleEffect(x: 1, y: 2, anchor: .center)
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.cardBackground)
+                        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+                )
+                
+                // Streak Info
+                HStack(spacing: 12) {
+                    // Current Streak
+                    HStack(spacing: 8) {
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(.orange)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(longestCurrentStreak)")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(.textPrimary)
+                            
+                            Text("Current Streak")
+                                .font(.caption)
+                                .foregroundColor(.textSecondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.cardBackground)
+                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    )
+                    
+                    // Total Completed
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.primaryBlue)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(totalCompletedThisWeek)")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(.textPrimary)
+                            
+                            Text("This Week")
+                                .font(.caption)
+                                .foregroundColor(.textSecondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.cardBackground)
+                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    )
+                }
             }
         }
     }
@@ -381,6 +529,26 @@ struct ProfileView: View {
     private var totalDaysTracked: Int {
         let uniqueDates = Set(habitManager.entries.map { Calendar.current.startOfDay(for: $0.date) })
         return uniqueDates.count
+    }
+    
+    private var totalCompletedThisWeek: Int {
+        let calendar = Calendar.current
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        let weekEnd = calendar.dateInterval(of: .weekOfYear, for: Date())?.end ?? Date()
+        
+        var totalCompleted = 0
+        
+        for habit in habitManager.habits {
+            let entries = habitManager.entries.filter { entry in
+                entry.habitId == habit.id &&
+                entry.date >= weekStart &&
+                entry.date < weekEnd
+            }
+            
+            totalCompleted += entries.filter { $0.status == .completed }.count
+        }
+        
+        return totalCompleted
     }
 }
 

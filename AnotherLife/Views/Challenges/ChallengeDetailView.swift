@@ -48,6 +48,8 @@ struct ChallengeDetailView: View {
     @State private var isLoading = false
     @State private var streakHeatmapData: [String: DailyStatus] = [:]
     @State private var isProgressSaved = false
+    @State private var showingJoinSuccessAlert = false
+    @State private var joinSuccessMessage = ""
     @State private var isSaving = false
     @State private var showSaveConfirmation = false
     @State private var showCelebration = false
@@ -57,6 +59,7 @@ struct ChallengeDetailView: View {
     @State private var showingLeaderboardSheet = false
     @State private var showingCompletionAlert = false
     @State private var completionAlertMessage = ""
+    @State private var isRefreshingData = false
     
     private var progress: ChallengeProgress? {
         challengeManager.challengeProgress[challenge.id]
@@ -185,6 +188,17 @@ struct ChallengeDetailView: View {
                 }
             }
         )
+        .overlay(
+            // Luxury Join Success Alert
+            Group {
+                if showingJoinSuccessAlert {
+                    LuxuryJoinSuccessAlert(
+                        isPresented: $showingJoinSuccessAlert,
+                        message: joinSuccessMessage
+                    )
+                }
+            }
+        )
     }
     
     // MARK: - Hero Header
@@ -300,11 +314,11 @@ struct ChallengeDetailView: View {
                         // Challenge ended - show read-only status
                         VStack(spacing: 12) {
                             HStack(spacing: 8) {
-                                Image(systemName: todayStatus == .completed ? "checkmark.circle.fill" : "minus.circle.fill")
+                                Image(systemName: todayStatus == .completed ? "checkmark.circle.fill" : todayStatus == .skipped ? "minus.circle.fill" : "circle")
                                     .font(.title2)
-                                    .foregroundColor(todayStatus == .completed ? .primaryGreen : .orange)
+                                    .foregroundColor(todayStatus == .completed ? .primaryGreen : todayStatus == .skipped ? .orange : .gray)
                                 
-                                Text(todayStatus == .completed ? "Completed" : "Skipped")
+                                Text(todayStatus.displayName)
                                     .font(.headline)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.textPrimary)
@@ -338,11 +352,11 @@ struct ChallengeDetailView: View {
                         // Show saved status and edit button (only if challenge is not completed)
                         VStack(spacing: 12) {
                             HStack(spacing: 8) {
-                                Image(systemName: todayStatus == .completed ? "checkmark.circle.fill" : "minus.circle.fill")
+                                Image(systemName: todayStatus == .completed ? "checkmark.circle.fill" : todayStatus == .skipped ? "minus.circle.fill" : "circle")
                                     .font(.title2)
-                                    .foregroundColor(todayStatus == .completed ? .primaryGreen : .orange)
+                                    .foregroundColor(todayStatus == .completed ? .primaryGreen : todayStatus == .skipped ? .orange : .gray)
                                 
-                                Text(todayStatus == .completed ? "Completed" : "Skipped")
+                                Text(todayStatus.displayName)
                                     .font(.headline)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.textPrimary)
@@ -560,7 +574,7 @@ struct ChallengeDetailView: View {
     // MARK: - Streak Section
     private var streakSectionView: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Streak")
+            Text("Progress")
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundColor(.textPrimary)
@@ -576,12 +590,14 @@ struct ChallengeDetailView: View {
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundColor(.textPrimary)
+                        .animation(.easeInOut(duration: 0.5), value: currentStreak)
                     
                     Spacer()
                 }
                 
                 // Calendar Heatmap
                 calendarHeatmapView
+                    .animation(.easeInOut(duration: 0.5), value: streakHeatmapData)
                 
                 HStack {
                     Image(systemName: "calendar")
@@ -646,7 +662,12 @@ struct ChallengeDetailView: View {
                             isCurrentUser: entry.user.id == authManager.currentUser?.id,
                             isTop5: index < 5
                         )
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .move(edge: .bottom))
+                        ))
                     }
+                    .animation(.easeInOut(duration: 0.5), value: leaderboard.map(\.id))
                 }
             }
             .padding(20)
@@ -685,7 +706,12 @@ struct ChallengeDetailView: View {
                 } else {
                     ForEach(activityFeed, id: \.id) { activity in
                         ActivityRowView(activity: activity)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity.combined(with: .move(edge: .bottom))
+                            ))
                     }
+                    .animation(.easeInOut(duration: 0.5), value: activityFeed.map(\.id))
                 }
             }
             .padding(20)
@@ -1019,6 +1045,11 @@ struct ChallengeDetailView: View {
                     showSaveConfirmation = false
                 }
                 
+                // Refresh all data immediately for instant updates
+                Task {
+                    await refreshAllData()
+                }
+                
                 // Check for milestones and show celebration
                 if todayStatus == .completed {
                     checkForMilestones()
@@ -1042,6 +1073,10 @@ struct ChallengeDetailView: View {
             if joined {
                 print("✅ Successfully joined challenge")
                 await MainActor.run {
+                    // Show luxury success alert
+                    self.joinSuccessMessage = "Successfully joined '\(challenge.title)'! It's now added to My Challenges tab."
+                    self.showingJoinSuccessAlert = true
+                    
                     // Reload data to reflect the join
                     loadChallengeData()
                 }
@@ -1107,6 +1142,37 @@ struct ChallengeDetailView: View {
                 
                 isLoading = false
             }
+        }
+    }
+    
+    // Refresh all data for instant updates after actions
+    private func refreshAllData() async {
+        print("🔄 ChallengeDetailView: Refreshing all data after action")
+        
+        await MainActor.run {
+            isRefreshingData = true
+        }
+        
+        // Update current value from progress
+        await MainActor.run {
+            if let updatedProgress = challengeManager.challengeProgress[challenge.id] {
+                currentValue = updatedProgress.currentValue
+                print("✅ Updated currentValue to: \(currentValue)")
+            }
+        }
+        
+        // Refresh streak data (includes heatmap)
+        await loadStreakData()
+        
+        // Refresh leaderboard data
+        await loadLeaderboardData()
+        
+        // Refresh activity feed
+        await loadActivityData()
+        
+        await MainActor.run {
+            isRefreshingData = false
+            print("✅ ChallengeDetailView: All data refreshed successfully")
         }
     }
     
@@ -1820,7 +1886,8 @@ struct ChallengeDayTileView: View {
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(tileTextColor)
                     
-                    if let status = status {
+                    // Only show icons for completed or skipped status, not for notStarted
+                    if let status = status, status != .notStarted {
                         Image(systemName: statusIcon(for: status))
                             .font(.system(size: 7))
                             .foregroundColor(tileTextColor)
@@ -1834,24 +1901,48 @@ struct ChallengeDayTileView: View {
     }
     
     private var tileBackgroundColor: Color {
-        switch status {
-        case .completed:
-            return Color.primaryGreen
-        case .skipped:
-            return Color.orange
-        case .notStarted, .none:
-            return Color.gray.opacity(0.15)
+        // Special highlighting for today
+        if isToday {
+            switch status {
+            case .completed:
+                return Color.primaryGreen
+            case .skipped:
+                return Color.orange
+            case .notStarted, .none:
+                return Color.primaryBlue.opacity(0.3) // Blue highlight for today when not started
+            }
+        } else {
+            switch status {
+            case .completed:
+                return Color.primaryGreen
+            case .skipped:
+                return Color.orange
+            case .notStarted, .none:
+                return Color.gray.opacity(0.15)
+            }
         }
     }
     
     private var tileTextColor: Color {
-        switch status {
-        case .completed:
-            return .white
-        case .skipped:
-            return .white
-        case .notStarted, .none:
-            return Color.textSecondary
+        // Special text color for today
+        if isToday {
+            switch status {
+            case .completed:
+                return .white
+            case .skipped:
+                return .white
+            case .notStarted, .none:
+                return .primaryBlue // Blue text for today when not started
+            }
+        } else {
+            switch status {
+            case .completed:
+                return .white
+            case .skipped:
+                return .white
+            case .notStarted, .none:
+                return Color.textSecondary
+            }
         }
     }
     

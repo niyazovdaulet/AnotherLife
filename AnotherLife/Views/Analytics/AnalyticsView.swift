@@ -585,7 +585,7 @@ struct TimeRangeButton: View {
             .frame(height: 44)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.primaryBlue : Color.backgroundGray)
+                    .fill(isSelected ? Color.primaryBlue : Color.background)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(
@@ -643,7 +643,7 @@ struct StreakCardView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.backgroundGray)
+                .fill(Color.background)
         )
     }
 }
@@ -696,7 +696,7 @@ struct HabitPerformanceRow: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.backgroundGray)
+                .fill(Color.background)
         )
     }
     
@@ -791,7 +791,7 @@ struct HabitStreakGraphView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.backgroundGray)
+                .fill(Color.background)
         )
     }
     
@@ -868,7 +868,7 @@ struct CorrelationInsightView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.backgroundGray)
+                .fill(Color.background)
         )
     }
 }
@@ -1038,7 +1038,7 @@ struct ImprovedHabitStreakView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.backgroundGray)
+                .fill(Color.background)
         )
     }
     

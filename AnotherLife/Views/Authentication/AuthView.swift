@@ -27,7 +27,7 @@ struct AuthView: View {
         NavigationView {
             ZStack {
                 // Background
-                Color.backgroundGray
+                Color.background
                     .ignoresSafeArea()
                 
                 // Gradient overlay
@@ -419,7 +419,7 @@ struct AuthTextFieldStyle: TextFieldStyle {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.backgroundGray)
+                    .fill(Color.background)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)

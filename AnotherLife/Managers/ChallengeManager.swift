@@ -29,6 +29,9 @@ class ChallengeManager: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
+    // Stable active challenges array to prevent list jumping
+    @Published private var _activeChallenges: [Challenge] = []
+    
     private let db = Firestore.firestore()
     private var challengeListeners: [ListenerRegistration] = []
     private var progressListeners: [ListenerRegistration] = []
@@ -440,6 +443,9 @@ class ChallengeManager: ObservableObject {
                 challengeProgress[challengeId] = progress
                 print("✅ updateChallengeProgress: Updated local progress cache")
             }
+            
+            // Update active challenges to reflect any status changes
+            updateActiveChallenges()
 
             // Check if challenge is completed (completed all days of duration)
             if let challenge = challenges.first(where: { $0.id == challengeId }) {
@@ -1079,6 +1085,9 @@ class ChallengeManager: ObservableObject {
                 
                 // Clean up any duplicate progress documents
                 self.cleanupDuplicateProgress()
+                
+                // Update active challenges
+                self.updateActiveChallenges()
             }
         )
         
@@ -1159,6 +1168,9 @@ class ChallengeManager: ObservableObject {
                 
                 // Load challenges for which user has progress but didn't create
                 self.loadJoinedChallenges()
+                
+                // Update active challenges
+                self.updateActiveChallenges()
             }
         )
     }
@@ -1196,6 +1208,9 @@ class ChallengeManager: ObservableObject {
                     // Store joined challenges in the dedicated property
                     self.joinedChallenges = joinedChallenges
                     print("🔄 Loaded \(joinedChallenges.count) joined challenges")
+                    
+                    // Update active challenges
+                    self.updateActiveChallenges()
                 }
             } catch {
                 print("Failed to load joined challenges: \(error.localizedDescription)")
@@ -1564,32 +1579,49 @@ class ChallengeManager: ObservableObject {
     // MARK: - Computed Properties
     
     var activeChallenges: [Challenge] {
+        return _activeChallenges
+    }
+    
+    // Method to update active challenges with stable ordering
+    private func updateActiveChallenges() {
         // Get challenges where user has progress (both created and joined)
         var challenges: [Challenge] = []
         
         // Add challenges created by user (they are automatically joined)
         challenges.append(contentsOf: myChallenges.filter { challenge in
             // Must be active, not ended, and not completed
-            challenge.isActive && 
-            challenge.endDate > Date() &&
-            challengeProgress[challenge.id]?.status != .completed
+            let hasEnded = challenge.endDate <= Date()
+            let isCompleted = challengeProgress[challenge.id]?.status == .completed
+            return challenge.isActive && !hasEnded && !isCompleted
         })
         
         // Add challenges joined by user (but not created by them)
         challenges.append(contentsOf: joinedChallenges.filter { challenge in
             // Must be active, not ended, have progress, not completed, and not created by user
-            challenge.isActive && 
-            challenge.endDate > Date() &&
-            challengeProgress[challenge.id] != nil &&
-            challengeProgress[challenge.id]?.status != .completed &&
-            !myChallenges.contains { $0.id == challenge.id }
+            let hasEnded = challenge.endDate <= Date()
+            let isCompleted = challengeProgress[challenge.id]?.status == .completed
+            return challenge.isActive && 
+                   !hasEnded && 
+                   !isCompleted &&
+                   challengeProgress[challenge.id] != nil &&
+                   !myChallenges.contains { $0.id == challenge.id }
         })
         
-        // Remove duplicates
-        let uniqueChallenges = Array(Set(challenges.map { $0.id }))
-            .compactMap { id in challenges.first { $0.id == id } }
+        // Remove duplicates while preserving order
+        var uniqueChallenges: [Challenge] = []
+        var seenIds: Set<String> = []
         
-        return uniqueChallenges
+        for challenge in challenges {
+            if !seenIds.contains(challenge.id) {
+                uniqueChallenges.append(challenge)
+                seenIds.insert(challenge.id)
+            }
+        }
+        
+        // Only update if the content has actually changed
+        if uniqueChallenges.map(\.id) != _activeChallenges.map(\.id) {
+            _activeChallenges = uniqueChallenges
+        }
     }
 
     var completedChallenges: [Challenge] {

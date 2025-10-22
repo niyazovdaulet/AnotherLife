@@ -5,16 +5,19 @@ import SwiftUI
 class HabitManager: ObservableObject {
     @Published var habits: [Habit] = []
     @Published var entries: [HabitEntry] = []
+    @Published var notes: [HabitNote] = []
     @Published var selectedDate: Date = Date()
     @Published var theme: AppTheme = .system
     
     private let habitsKey = "saved_habits"
     private let entriesKey = "saved_entries"
+    private let notesKey = "saved_notes"
     private let themeKey = "app_theme"
     
     init() {
         loadHabits()
         loadEntries()
+        loadNotes()
         loadTheme()
     }
     
@@ -222,6 +225,46 @@ class HabitManager: ObservableObject {
         return maxStreak
     }
     
+    // MARK: - Notes Management
+    func addNote(_ note: HabitNote) {
+        notes.append(note)
+        saveNotes()
+    }
+    
+    func updateNote(_ note: HabitNote) {
+        if let index = notes.firstIndex(where: { $0.id == note.id }) {
+            var updatedNote = note
+            updatedNote.updatedAt = Date()
+            notes[index] = updatedNote
+            saveNotes()
+        }
+    }
+    
+    func deleteNote(_ note: HabitNote) {
+        notes.removeAll { $0.id == note.id }
+        saveNotes()
+    }
+    
+    func getNotes(for habit: Habit) -> [HabitNote] {
+        return notes.filter { $0.habitId == habit.id }.sorted { $0.date > $1.date }
+    }
+    
+    func getNotes(for date: Date) -> [HabitNote] {
+        let calendar = Calendar.current
+        return notes.filter { calendar.isDate($0.date, inSameDayAs: date) }.sorted { $0.createdAt > $1.createdAt }
+    }
+    
+    func getAllNotes() -> [HabitNote] {
+        return notes.sorted { $0.date > $1.date }
+    }
+    
+    func searchNotes(query: String) -> [HabitNote] {
+        guard !query.isEmpty else { return getAllNotes() }
+        return notes.filter { note in
+            note.content.lowercased().contains(query.lowercased())
+        }.sorted { $0.date > $1.date }
+    }
+    
     // MARK: - Persistence
     private func saveHabits() {
         if let encoded = try? JSONEncoder().encode(habits) {
@@ -263,5 +306,18 @@ class HabitManager: ObservableObject {
     func updateTheme(_ newTheme: AppTheme) {
         theme = newTheme
         saveTheme()
+    }
+    
+    private func saveNotes() {
+        if let encoded = try? JSONEncoder().encode(notes) {
+            UserDefaults.standard.set(encoded, forKey: notesKey)
+        }
+    }
+    
+    private func loadNotes() {
+        if let data = UserDefaults.standard.data(forKey: notesKey),
+           let decoded = try? JSONDecoder().decode([HabitNote].self, from: data) {
+            notes = decoded
+        }
     }
 }

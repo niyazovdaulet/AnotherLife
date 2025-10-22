@@ -345,7 +345,7 @@ struct AddHabitView: View {
                             .frame(width: 40, height: 40)
                             .background(
                                 Circle()
-                                    .fill(customDays.contains(day) ? Color.primaryBlue : Color.backgroundGray)
+                                    .fill(customDays.contains(day) ? Color.primaryBlue : Color.background)
                             )
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -496,7 +496,7 @@ struct AddHabitView: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.backgroundGray)
+                    .fill(Color.background)
             )
             
             // Target Completions Per Day
@@ -529,7 +529,7 @@ struct AddHabitView: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.backgroundGray)
+                    .fill(Color.background)
             )
         }
         .padding(20)
@@ -632,7 +632,7 @@ struct AddHabitView: View {
                                 .frame(width: 40, height: 40)
                                 .background(
                                     Circle()
-                                        .fill(selectedIcon == icon ? Color.primaryBlue : Color.backgroundGray)
+                                        .fill(selectedIcon == icon ? Color.primaryBlue : Color.background)
                                 )
                                 .scaleEffect(selectedIcon == icon ? 1.1 : 1.0)
                         }

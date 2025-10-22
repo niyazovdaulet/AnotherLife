@@ -15,7 +15,7 @@ struct OnboardingFlowView: View {
     var body: some View {
         ZStack {
             // Background
-            Color.backgroundGray
+            Color.background
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {

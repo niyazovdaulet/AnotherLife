@@ -1,19 +1,12 @@
 import SwiftUI
 
-struct NoteEditorView: View {
+struct NewNoteView: View {
     @EnvironmentObject var habitManager: HabitManager
     @Environment(\.dismiss) private var dismiss
-    
-    let note: HabitNote?
-    let selectedHabit: Habit?
     
     @State private var content: String = ""
     @State private var habitId: UUID?
     @State private var showingHabitPicker = false
-    
-    var isEditing: Bool {
-        note != nil
-    }
     
     var body: some View {
         NavigationView {
@@ -30,8 +23,6 @@ struct NoteEditorView: View {
                 .ignoresSafeArea()
                 
                 VStack(spacing: 28) {
-                    // Premium spacing and layout
-                    
                     // Habit Selector (Optional)
                     habitSelectorSection
                     
@@ -48,7 +39,7 @@ struct NoteEditorView: View {
                 .padding(.top, 24)
                 .padding(.bottom, 50)
             }
-            .navigationTitle(isEditing ? "Edit Note" : "New Note")
+            .navigationTitle("New Note")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -58,7 +49,7 @@ struct NoteEditorView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(isEditing ? "Save" : "Add") {
+                    Button("Add") {
                         saveNote()
                     }
                     .disabled(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -66,18 +57,11 @@ struct NoteEditorView: View {
                 }
             }
         }
-        .onAppear {
-            loadNoteData()
-        }
-        .onChange(of: note) {
-            loadNoteData()
-        }
-        .onTapGesture {
-            // Dismiss keyboard when tapping outside text editor
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        .sheet(isPresented: $showingHabitPicker) {
+            HabitPickerView(selectedHabitId: $habitId)
+                .environmentObject(habitManager)
         }
     }
-    
     
     // MARK: - Habit Selector Section
     private var habitSelectorSection: some View {
@@ -144,10 +128,6 @@ struct NoteEditorView: View {
                 )
             }
             .buttonStyle(PlainButtonStyle())
-        }
-        .sheet(isPresented: $showingHabitPicker) {
-            HabitPickerView(selectedHabitId: $habitId)
-                .environmentObject(habitManager)
         }
     }
     
@@ -262,13 +242,14 @@ struct NoteEditorView: View {
                     .fill(Color.cardBackground)
                     .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
                 
-                // Text Editor with soft paper-like texture
-                DynamicTextEditor(text: $content, maxWords: 150)
+                // Simple TextEditor without dynamic height calculation
+                TextEditor(text: $content)
                     .font(.body)
                     .foregroundColor(.textPrimary)
                     .padding(16)
                     .scrollContentBackground(.hidden)
                     .background(Color.clear)
+                    .frame(minHeight: 200, maxHeight: 400)
                 
                 // Placeholder
                 if content.isEmpty {
@@ -282,7 +263,6 @@ struct NoteEditorView: View {
             }
         }
     }
-    
     
     // MARK: - Footer Section
     private var footerSection: some View {
@@ -301,222 +281,23 @@ struct NoteEditorView: View {
     }
     
     // MARK: - Helper Methods
-    private func loadNoteData() {
-        // Load data immediately without async dispatch to prevent timing issues
-        if let note = self.note {
-            self.content = note.content
-            self.habitId = note.habitId
-        } else if let habit = self.selectedHabit {
-            self.habitId = habit.id
-        }
-    }
-    
-    
     private func saveNote() {
         let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedContent.isEmpty else { return }
         
-        if let existingNote = note {
-            var updatedNote = existingNote
-            updatedNote.content = trimmedContent
-            updatedNote.habitId = habitId
-            updatedNote.updatedAt = Date() // Update timestamp
-            habitManager.updateNote(updatedNote)
-        } else {
-            let newNote = HabitNote(
-                content: trimmedContent,
-                date: Date(), // Always use today
-                habitId: habitId,
-                tags: [] // No tags
-            )
-            habitManager.addNote(newNote)
-        }
+        let newNote = HabitNote(
+            content: trimmedContent,
+            date: Date(),
+            habitId: habitId,
+            tags: []
+        )
+        habitManager.addNote(newNote)
         
         dismiss()
     }
 }
 
-// MARK: - Habit Picker View
-struct HabitPickerView: View {
-    @EnvironmentObject var habitManager: HabitManager
-    @Environment(\.dismiss) private var dismiss
-    @Binding var selectedHabitId: UUID?
-    
-    var body: some View {
-        NavigationView {
-            List {
-                ForEach(habitManager.habits) { habit in
-                    Button(action: {
-                        selectedHabitId = habit.id
-                        dismiss()
-                    }) {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(hex: habit.color)?.opacity(0.15) ?? Color.primaryBlue.opacity(0.15))
-                                    .frame(width: 40, height: 40)
-                                
-                                Image(systemName: habit.icon)
-                                    .font(.title3)
-                                    .foregroundColor(Color(hex: habit.color) ?? .primaryBlue)
-                            }
-                            
-                            Text(habit.title)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.textPrimary)
-                            
-                            Spacer()
-                            
-                            if selectedHabitId == habit.id {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.primaryBlue)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-            .navigationTitle("Select Habit")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Dynamic Text Editor
-struct DynamicTextEditor: View {
-    @Binding var text: String
-    @State private var textHeight: CGFloat = 150
-    @State private var isEnforcingLimit = false
-    @State private var debounceWorkItem: DispatchWorkItem?
-    let maxWords: Int
-    
-    private let minHeight: CGFloat = 150
-    private let maxHeight: CGFloat = 600
-    private let lineHeight: CGFloat = 23.5 // Approximate line height for better calculation
-    
-    init(text: Binding<String>, maxWords: Int) {
-        self._text = text
-        self.maxWords = maxWords
-        // Ensure textHeight starts with a valid value
-        self._textHeight = State(initialValue: 150)
-    }
-    
-    // Computed property to ensure textHeight is always valid
-    private var safeTextHeight: CGFloat {
-        let height = textHeight
-        // More robust validation to prevent NaN/Infinite values
-        guard height.isFinite && height > 0 else {
-            return minHeight
-        }
-        return max(minHeight, min(height, maxHeight))
-    }
-    
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            // Hidden text view to calculate height - more robust implementation
-            Text(text.isEmpty ? "Sample text for measurement" : text)
-                .font(.body)
-                .padding(16)
-                .background(
-                    GeometryReader { geometry in
-                        Color.clear
-                            .onAppear {
-                                calculateHeight(from: geometry)
-                            }
-                            .onChange(of: text) {
-                                calculateHeight(from: geometry)
-                            }
-                    }
-                )
-                .opacity(0) // Hidden
-            
-            // Actual TextEditor with professional styling and word limit
-            TextEditor(text: $text)
-                .frame(height: safeTextHeight)
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .onChange(of: text) { newValue in
-                    // Cancel previous work item
-                    debounceWorkItem?.cancel()
-                    
-                    // Create new work item with debounce
-                    debounceWorkItem = DispatchWorkItem {
-                        enforceWordLimit(newValue: newValue)
-                    }
-                    
-                    // Execute after a short delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: debounceWorkItem!)
-                }
-                .onDisappear {
-                    debounceWorkItem?.cancel()
-                }
-        }
-    }
-    
-    private func calculateHeight(from geometry: GeometryProxy) {
-        let calculatedHeight = geometry.size.height
-        
-        // More robust validation using isFinite
-        guard calculatedHeight.isFinite && 
-              calculatedHeight > 0 && 
-              calculatedHeight < 10000 else { // Reasonable upper bound
-            // If invalid, reset to minHeight
-            textHeight = minHeight
-            return
-        }
-        
-        // Use the calculated height but ensure it doesn't exceed maxHeight
-        let finalHeight = max(minHeight, min(calculatedHeight, maxHeight))
-        
-        // Double-check the final height is valid using isFinite
-        guard finalHeight.isFinite && finalHeight > 0 && finalHeight <= maxHeight else {
-            textHeight = minHeight
-            return
-        }
-        
-        // Only update if the change is significant to avoid constant updates
-        if abs(textHeight - finalHeight) > 1.0 {
-            textHeight = finalHeight
-        }
-    }
-    
-    private func enforceWordLimit(newValue: String) {
-        // Prevent infinite loops
-        guard !isEnforcingLimit else { return }
-        
-        let wordCount = newValue.split(separator: " ").count
-        if wordCount > maxWords {
-            isEnforcingLimit = true
-            
-            // Find the last valid position that keeps us at exactly maxWords
-            let words = newValue.split(separator: " ")
-            let truncatedWords = Array(words.prefix(maxWords))
-            let validContent = truncatedWords.joined(separator: " ")
-            
-            // Only update if the content is different
-            if text != validContent {
-                text = validContent
-            }
-            
-            // Reset the flag after a short delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.isEnforcingLimit = false
-            }
-        }
-    }
-}
-
 #Preview {
-    NoteEditorView(note: nil, selectedHabit: nil)
+    NewNoteView()
         .environmentObject(HabitManager())
 }
-

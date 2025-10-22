@@ -109,7 +109,7 @@ struct ChallengeDetailView: View {
                     leaderboardSectionView
                     
                     // Activity Feed
-                    activityFeedView
+//                    activityFeedView
                     
                     // Members Section
                     membersSectionView
@@ -679,50 +679,50 @@ struct ChallengeDetailView: View {
         }
     }
     
-    // MARK: - Activity Feed
-    private var activityFeedView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Recent Activity")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.textPrimary)
-            
-            VStack(spacing: 12) {
-                if activityFeed.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 32))
-                            .foregroundColor(.textSecondary)
-                        
-                        Text("No activity yet")
-                            .font(.subheadline)
-                            .foregroundColor(.textSecondary)
-                        
-                        Text("Activity will appear here as members participate")
-                            .font(.caption)
-                            .foregroundColor(.textSecondary)
-                    }
-                    .padding(.vertical, 20)
-                } else {
-                    ForEach(activityFeed, id: \.id) { activity in
-                        ActivityRowView(activity: activity)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .top)),
-                                removal: .opacity.combined(with: .move(edge: .bottom))
-                            ))
-                    }
-                    .animation(.easeInOut(duration: 0.5), value: activityFeed.map(\.id))
-                }
-            }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.cardBackground)
-                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-            )
-        }
-    }
-    
+//    // MARK: - Activity Feed
+//    private var activityFeedView: some View {
+//        VStack(alignment: .leading, spacing: 16) {
+//            Text("Recent Activity")
+//                .font(.title2)
+//                .fontWeight(.bold)
+//                .foregroundColor(.textPrimary)
+//            
+//            VStack(spacing: 12) {
+//                if activityFeed.isEmpty {
+//                    VStack(spacing: 12) {
+//                        Image(systemName: "clock")
+//                            .font(.system(size: 32))
+//                            .foregroundColor(.textSecondary)
+//                        
+//                        Text("No activity yet")
+//                            .font(.subheadline)
+//                            .foregroundColor(.textSecondary)
+//                        
+//                        Text("Activity will appear here as members participate")
+//                            .font(.caption)
+//                            .foregroundColor(.textSecondary)
+//                    }
+//                    .padding(.vertical, 20)
+//                } else {
+//                    ForEach(activityFeed, id: \.id) { activity in
+//                        ActivityRowView(activity: activity)
+//                            .transition(.asymmetric(
+//                                insertion: .opacity.combined(with: .move(edge: .top)),
+//                                removal: .opacity.combined(with: .move(edge: .bottom))
+//                            ))
+//                    }
+//                    .animation(.easeInOut(duration: 0.5), value: activityFeed.map(\.id))
+//                }
+//            }
+//            .padding(20)
+//            .background(
+//                RoundedRectangle(cornerRadius: 16)
+//                    .fill(Color.cardBackground)
+//                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+//            )
+//        }
+//    }
+//    
     // MARK: - Members Section
     private var membersSectionView: some View {
         VStack(alignment: .leading, spacing: 16) {

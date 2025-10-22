@@ -46,8 +46,11 @@ class ChallengeManager: ObservableObject {
     }
     
     deinit {
-        Task { @MainActor in
-            removeAllListeners()
+        // Remove listeners synchronously to avoid retain cycles
+        // Use Task.detached to avoid capturing self
+        Task.detached { [challengeListeners, progressListeners] in
+            challengeListeners.forEach { $0.remove() }
+            progressListeners.forEach { $0.remove() }
         }
     }
     

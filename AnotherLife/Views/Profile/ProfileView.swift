@@ -31,7 +31,7 @@ struct ProfileView: View {
                         profileHeaderView
                         
                         // Stats Overview
-                        statsOverviewView
+//                        statsOverviewView
                         
                         // Weekly Report & Analytics
                         weeklyReportSection
@@ -75,18 +75,31 @@ struct ProfileView: View {
     // MARK: - Profile Header View
     private var profileHeaderView: some View {
         VStack(spacing: 20) {
-            // Profile Picture
+            // Profile Picture with enhanced glow
             ZStack {
+                // Outer glow effect
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [.primaryBlue, .primaryBlue.opacity(0.7)]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(Color.primaryGradient)
+                    .frame(width: 140, height: 140)
+                    .blur(radius: 12)
+                    .opacity(0.3)
+                
+                // Profile Picture
+                Circle()
+                    .fill(Color.primaryGradient)
                     .frame(width: 120, height: 120)
-                    .shadow(color: .primaryBlue.opacity(0.3), radius: 20, x: 0, y: 10)
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2
+                            )
+                    )
+                    .shadow(color: .primaryBlue.opacity(0.4), radius: 24, x: 0, y: 12)
                 
                 if let profileImageURL = authManager.currentUser?.profileImageURL, !profileImageURL.isEmpty {
                     AsyncImage(url: URL(string: profileImageURL)) { image in
@@ -123,84 +136,132 @@ struct ProfileView: View {
                     .foregroundColor(.textSecondary)
             }
             
-            // Edit Profile Button
+            // Enhanced Edit Profile Button
             Button(action: { showingEditProfile = true }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "pencil")
+                HStack(spacing: 10) {
+                    Image(systemName: "pencil.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
                     Text("Edit Profile")
+                        .font(.system(size: 16, weight: .semibold))
                 }
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.primaryBlue)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
+                .foregroundColor(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
                 .background(
-                    Capsule()
-                        .fill(Color.primaryBlue.opacity(0.1))
+                    ZStack {
+                        Capsule()
+                            .fill(Color.primaryGradient)
+                            .shadow(color: .primaryBlue.opacity(0.3), radius: 12, x: 0, y: 6)
+                        
+                        Capsule()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    }
                 )
             }
             .buttonStyle(PlainButtonStyle())
         }
-        .padding(24)
+        .padding(28)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 8)
+            ZStack {
+                // Glass-like background with gradient
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(Material.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.2),
+                                        Color.white.opacity(0.05)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                
+                // Subtle accent gradient overlay
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.primaryBlue.opacity(0.05),
+                                Color.primaryPurple.opacity(0.02)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+        )
+        .shadow(
+            color: .black.opacity(0.1),
+            radius: 20,
+            x: 0,
+            y: 10
         )
     }
     
-    // MARK: - Stats Overview View
-    private var statsOverviewView: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                Text("Your Progress")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.textPrimary)
-                
-                Spacer()
-            }
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 16) {
-                StatCardView(
-                    title: "Total Habits",
-                    value: "\(habitManager.habits.count)",
-                    icon: "star.fill",
-                    color: .primaryBlue
-                )
-                
-                StatCardView(
-                    title: "Current Streak",
-                    value: "\(longestCurrentStreak)",
-                    icon: "flame.fill",
-                    color: .orange
-                )
-                
-                StatCardView(
-                    title: "This Week",
-                    value: "\(String(format: "%.0f", weeklyCompletionRate))%",
-                    icon: "chart.bar.fill",
-                    color: .primaryGreen
-                )
-                
-                StatCardView(
-                    title: "Total Days",
-                    value: "\(totalDaysTracked)",
-                    icon: "calendar",
-                    color: .purple
-                )
-            }
-        }
-    }
+//    // MARK: - Stats Overview View
+//    private var statsOverviewView: some View {
+//        VStack(alignment: .leading, spacing: 20) {
+//            HStack {
+//                Text("Your Progress")
+//                    .font(.title2)
+//                    .fontWeight(.bold)
+//                    .foregroundColor(.textPrimary)
+//                
+//                Spacer()
+//            }
+//            
+//            LazyVGrid(columns: [
+//                GridItem(.flexible()),
+//                GridItem(.flexible())
+//            ], spacing: 16) {
+//                StatCardView(
+//                    title: "Total Habits",
+//                    value: "\(habitManager.habits.count)",
+//                    icon: "star.fill",
+//                    color: .primaryBlue
+//                )
+//                
+//                StatCardView(
+//                    title: "Current Streak",
+//                    value: "\(longestCurrentStreak)",
+//                    icon: "flame.fill",
+//                    color: .orange
+//                )
+//                
+//                StatCardView(
+//                    title: "This Week",
+//                    value: "\(String(format: "%.0f", weeklyCompletionRate))%",
+//                    icon: "chart.bar.fill",
+//                    color: .primaryGreen
+//                )
+//                
+//                StatCardView(
+//                    title: "Total Days",
+//                    value: "\(totalDaysTracked)",
+//                    icon: "calendar",
+//                    color: .purple
+//                )
+//            }
+//        }
+//    }
     
     // MARK: - Weekly Report Section
     private var weeklyReportSection: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
-                Text("Performance Report")
+                Text("Habits Performance")
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundColor(.textPrimary)
@@ -236,15 +297,21 @@ struct ProfileView: View {
                 }
                 .padding(20)
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [Color.primaryBlue, Color.purple]),
-                                startPoint: .leading,
-                                endPoint: .trailing
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.primaryGradient)
+                            .shadow(color: .primaryBlue.opacity(0.4), radius: 16, x: 0, y: 8)
+                        
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
                             )
-                        )
-                        .shadow(color: .primaryBlue.opacity(0.3), radius: 12, x: 0, y: 6)
+                    }
                 )
             }
             .buttonStyle(PlainButtonStyle())
@@ -461,7 +528,7 @@ struct ProfileView: View {
                 InfoRow(
                     icon: "info.circle",
                     title: "App Version",
-                    value: "1.2.2"
+                    value: "1.3.1"
                 )
                 
                 InfoRow(

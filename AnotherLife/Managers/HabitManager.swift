@@ -42,10 +42,11 @@ class HabitManager: ObservableObject {
     }
     
     // MARK: - Entry Management
-    func updateEntry(for habit: Habit, status: HabitStatus, notes: String = "") {
-        let entry = HabitEntry(habitId: habit.id, date: selectedDate, status: status, notes: notes)
+    func updateEntry(for habit: Habit, status: HabitStatus, notes: String = "", on date: Date? = nil) {
+        let targetDate = date ?? selectedDate
+        let entry = HabitEntry(habitId: habit.id, date: targetDate, status: status, notes: notes)
         
-        if let index = entries.firstIndex(where: { $0.habitId == habit.id && Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }) {
+        if let index = entries.firstIndex(where: { $0.habitId == habit.id && Calendar.current.isDate($0.date, inSameDayAs: targetDate) }) {
             entries[index] = entry
         } else {
             entries.append(entry)

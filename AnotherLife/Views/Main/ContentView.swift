@@ -90,8 +90,8 @@ struct ContentView: View {
                     }
                     .transition(.opacity)
                 } else {
-                    // Authentication
-                    AuthView()
+                    // Welcome Landing Page (first time) or Auth
+                    WelcomeLandingView()
                         .environmentObject(authManager)
                         .transition(.opacity)
                 }
@@ -511,9 +511,10 @@ struct MainHabitView: View {
                                 insertion: .opacity.combined(with: .move(edge: .top)),
                                 removal: .opacity.combined(with: .move(edge: .bottom))
                             ))
+                            .id(habit.id)
                     }
                 }
-                .animation(.easeInOut(duration: 0.5), value: habitManager.habits.map(\.id))
+                .animation(.easeInOut(duration: 0.5), value: habitManager.habits.count)
             }
         }
     }
@@ -817,17 +818,6 @@ struct HabitCardView: View {
                         
                         // Tags
                         HStack(spacing: 8) {
-                            Text(habit.frequency.displayName)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.primaryBlue.opacity(0.1))
-                                )
-                                .foregroundColor(.primaryBlue)
-                            
                             Text(habit.isPositive ? "Positive" : "Negative")
                                 .font(.caption)
                                 .fontWeight(.medium)
@@ -1270,7 +1260,7 @@ struct HabitGridView: View {
                         .frame(width: 60, height: 60)
                         .blur(radius: 8)
                         .opacity(isGlowing ? 0.8 : 0.3)
-                        .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: isGlowing)
+                        .animation(.easeInOut(duration: 0.6), value: isGlowing)
                     
                     // Main icon container
                     ZStack {
@@ -1313,18 +1303,6 @@ struct HabitGridView: View {
                     
                     // Premium Tags
                     HStack(spacing: 8) {
-                        // Frequency tag with habit color
-                        Text(habit.frequency.displayName)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(habitColor.opacity(0.15))
-                            )
-                            .foregroundColor(habitColor)
-                        
                         // Positive/Negative tag
                         Text(habit.isPositive ? "Positive" : "Negative")
                             .font(.caption)
@@ -1355,16 +1333,9 @@ struct HabitGridView: View {
                 
                 Spacer()
                 
-                // Enhanced Completion Button
+                // Enhanced Completion Button (visual indicator only)
                 completionButton
-                    .onLongPressGesture(minimumDuration: 0.5) {
-                        if habit.targetCompletionsPerDay > 1 {
-                            showingCompletionDetail = true
-                        }
-                    }
-                    .onTapGesture(count: 2) {
-                        undoLastCompletion()
-                    }
+                    .allowsHitTesting(false) // Make button non-interactive, whole cell handles taps
             }
             
             // Premium Stats Section
@@ -1398,8 +1369,7 @@ struct HabitGridView: View {
                         Image(systemName: "flame.fill")
                             .foregroundColor(.orange)
                             .font(.caption)
-                            .scaleEffect(isGlowing ? 1.2 : 1.0)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isGlowing)
+                            .scaleEffect(1.0)
                         
                         Text("Streak")
                             .font(.caption)
@@ -1446,7 +1416,7 @@ struct HabitGridView: View {
                         }
                     }
                 }
-                .animation(.easeInOut(duration: 0.5), value: dayTiles.map(\.status))
+                .animation(.easeInOut(duration: 0.5), value: dayTiles.count)
             }
         }
         .padding(20)
@@ -1486,11 +1456,29 @@ struct HabitGridView: View {
             x: 0,
             y: 6
         )
+        .contentShape(Rectangle()) // Make entire area tappable
+        .onTapGesture {
+            // Single tap: mark as completed for today
+            toggleTodayStatus()
+        }
+        .onTapGesture(count: 2) {
+            // Double tap: undo last completion
+            undoLastCompletion()
+        }
+        .onLongPressGesture(minimumDuration: 0.5) {
+            // Long press: show completion detail for multi-completion habits
+            if habit.targetCompletionsPerDay > 1 {
+                showingCompletionDetail = true
+            }
+        }
         .onAppear {
             // Animate progress and streak on appear
+            let progress = habitManager.getCompletionProgress(for: habit) * 100
+            let streak = currentStreak
+            
             withAnimation(.easeOut(duration: 1.0)) {
-                animatedProgress = habitManager.getCompletionProgress(for: habit) * 100
-                animatedStreak = currentStreak
+                animatedProgress = progress
+                animatedStreak = streak
             }
         }
         .onChange(of: currentStreak) { newValue in
@@ -1499,10 +1487,20 @@ struct HabitGridView: View {
                 animatedStreak = newValue
             }
         }
-        .onChange(of: habitManager.getCompletionProgress(for: habit)) { newValue in
-            // Animate progress changes
-            withAnimation(.easeOut(duration: 0.8)) {
-                animatedProgress = newValue * 100
+        .onChange(of: habitManager.entries.count) { _ in
+            // Update progress when entries change (completion toggled)
+            let progress = habitManager.getCompletionProgress(for: habit) * 100
+            if abs(animatedProgress - progress) > 0.1 {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    animatedProgress = progress
+                }
+            }
+        }
+        .onChange(of: todayStatus) { _ in
+            // Immediately update progress when today's status changes (faster response)
+            let progress = habitManager.getCompletionProgress(for: habit) * 100
+            if abs(animatedProgress - progress) > 0.1 {
+                animatedProgress = progress // Update immediately without animation delay
             }
         }
         .sheet(isPresented: $showingCompletionDetail) {
@@ -1528,96 +1526,79 @@ struct HabitGridView: View {
     }
     
     private var completionButton: some View {
-        Button(action: {
-            // Trigger glow effect
-            withAnimation(.easeInOut(duration: 0.3)) {
-                isGlowing = true
-            }
-            
-            // Reset glow after animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    isGlowing = false
-                }
-            }
-            
-            toggleTodayStatus()
-        }) {
-            ZStack {
-                if habit.targetCompletionsPerDay > 1 {
-                    // Multi-completion habit - show progress ring
-                    let progress = habitManager.getCompletionProgress(for: habit, on: Date())
-                    
-                    // Background circle
-                    Circle()
-                        .fill(habitColor.opacity(0.1))
-                        .frame(width: 36, height: 36)
-                    
-                    // Progress ring
-                    Circle()
-                        .stroke(habitColor.opacity(0.3), lineWidth: 3)
-                        .frame(width: 36, height: 36)
-                    
-                    Circle()
-                        .trim(from: 0, to: progress.percentage)
-                        .stroke(habitColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .frame(width: 36, height: 36)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.3), value: progress.percentage)
-                    
-                    // Center content
-                    VStack(spacing: 1) {
-                        if progress.completed == progress.target && progress.target > 0 {
-                            // Fully completed
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                        } else {
-                            // Show progress
-                            Text("\(progress.completed)")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(habitColor)
-                        }
-                        
-                        if progress.target > 1 {
-                            Text("\(progress.target)")
-                                .font(.system(size: 8, weight: .medium))
-                                .foregroundColor(habitColor.opacity(0.7))
-                        }
-                        
-                        // Undo hint for completed habits
-                        if progress.completed > 0 {
-                            Image(systemName: "arrow.uturn.backward.circle")
-                                .font(.system(size: 8))
-                                .foregroundColor(habitColor.opacity(0.5))
-                        }
+        ZStack {
+            if habit.targetCompletionsPerDay > 1 {
+                // Multi-completion habit - show progress ring
+                let progress = habitManager.getCompletionProgress(for: habit, on: Date())
+                
+                // Background circle
+                Circle()
+                    .fill(habitColor.opacity(0.1))
+                    .frame(width: 36, height: 36)
+                
+                // Progress ring
+                Circle()
+                    .stroke(habitColor.opacity(0.3), lineWidth: 3)
+                    .frame(width: 36, height: 36)
+                
+                Circle()
+                    .trim(from: 0, to: progress.percentage)
+                    .stroke(habitColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .frame(width: 36, height: 36)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 0.3), value: progress.percentage)
+                
+                // Center content
+                VStack(spacing: 1) {
+                    if progress.completed == progress.target && progress.target > 0 {
+                        // Fully completed
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    } else {
+                        // Show progress
+                        Text("\(progress.completed)")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(habitColor)
                     }
-                } else {
-                    // Single completion habit - original design
-                    Circle()
-                        .fill(todayStatus == .completed ? .primaryGreen : habitColor.opacity(0.1))
-                        .frame(width: 36, height: 36)
-                        .shadow(color: todayStatus == .completed ? .primaryGreen.opacity(0.3) : .clear, radius: 6, x: 0, y: 3)
                     
-                    VStack(spacing: 1) {
-                        Image(systemName: todayStatus == .completed ? "checkmark" : "circle")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                            .foregroundColor(todayStatus == .completed ? .white : habitColor)
-                        
-                        // Undo hint for completed habits
-                        if todayStatus == .completed {
-                            Image(systemName: "arrow.uturn.backward.circle")
-                                .font(.system(size: 8))
-                                .foregroundColor(.white.opacity(0.7))
-                        }
+                    if progress.target > 1 {
+                        Text("\(progress.target)")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundColor(habitColor.opacity(0.7))
+                    }
+                    
+                    // Undo hint for completed habits
+                    if progress.completed > 0 {
+                        Image(systemName: "arrow.uturn.backward.circle")
+                            .font(.system(size: 8))
+                            .foregroundColor(habitColor.opacity(0.5))
+                    }
+                }
+            } else {
+                // Single completion habit - original design
+                Circle()
+                    .fill(todayStatus == .completed ? .primaryGreen : habitColor.opacity(0.1))
+                    .frame(width: 36, height: 36)
+                    .shadow(color: todayStatus == .completed ? .primaryGreen.opacity(0.3) : .clear, radius: 6, x: 0, y: 3)
+                
+                VStack(spacing: 1) {
+                    Image(systemName: todayStatus == .completed ? "checkmark" : "circle")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(todayStatus == .completed ? .white : habitColor)
+                    
+                    // Undo hint for completed habits
+                    if todayStatus == .completed {
+                        Image(systemName: "arrow.uturn.backward.circle")
+                            .font(.system(size: 8))
+                            .foregroundColor(.white.opacity(0.7))
                     }
                 }
             }
         }
-        .buttonStyle(PlainButtonStyle())
         .scaleEffect(habit.targetCompletionsPerDay > 1 ? 1.0 : (todayStatus == .completed ? 1.0 : 0.9))
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: todayStatus)
+        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: todayStatus)
     }
     
     private var todayStatus: HabitStatus? {
@@ -1625,6 +1606,7 @@ struct HabitGridView: View {
     }
     
     private var dayTiles: [DayTile] {
+        // Calculate tiles without modifying state
         let calendar = Calendar.current
         let today = Date()
         var tiles: [DayTile] = []
@@ -1701,7 +1683,7 @@ struct HabitGridView: View {
             }
             
             if let status = nextStatus {
-                habitManager.updateEntry(for: habit, status: status)
+                habitManager.updateEntry(for: habit, status: status, on: date)
             } else {
                 // Remove entry (set to none)
                 if let index = habitManager.entries.firstIndex(where: { $0.habitId == habit.id && Calendar.current.isDate($0.date, inSameDayAs: date) }) {
@@ -1719,6 +1701,18 @@ struct HabitGridView: View {
     private func toggleTodayStatus() {
         let today = Date()
         
+        // Trigger glow effect
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isGlowing = true
+        }
+        
+        // Reset glow after animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                isGlowing = false
+            }
+        }
+        
         // For multi-completion habits, add a completion
         if habit.targetCompletionsPerDay > 1 {
             let progress = habitManager.getCompletionProgress(for: habit, on: today)
@@ -1734,10 +1728,10 @@ struct HabitGridView: View {
             
             if currentStatus == .completed {
                 // Mark as failed (leave it)
-                habitManager.updateEntry(for: habit, status: .failed)
+                habitManager.updateEntry(for: habit, status: .failed, on: today)
             } else {
                 // Mark as completed
-                habitManager.updateEntry(for: habit, status: .completed)
+                habitManager.updateEntry(for: habit, status: .completed, on: today)
             }
         }
         
@@ -1755,7 +1749,7 @@ struct HabitGridView: View {
             }
         } else {
             // Single completion habit - reset to skipped
-            habitManager.updateEntry(for: habit, status: .skipped)
+            habitManager.updateEntry(for: habit, status: .skipped, on: Date())
         }
         
         // Haptic feedback for undo

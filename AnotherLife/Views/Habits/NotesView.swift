@@ -209,28 +209,10 @@ struct NotesTabView: View {
             // Quick action section
             if !filteredNotes.isEmpty {
                 HStack(spacing: 12) {
-                    // Quick stats
-                    HStack(spacing: 16) {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.green.opacity(0.2))
-                                .frame(width: 8, height: 8)
-                            
-                            Text("\(habitsWithNotesCount) Habits")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.textSecondary)
-                        }
-                        
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.orange.opacity(0.2))
-                                .frame(width: 8, height: 8)
-                            
-                            Text("\(averageNotesPerHabit) Avg/Week")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.textSecondary)
-                        }
-                    }
+                    // Today's date label
+                    Text(todayDateString)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.textSecondary)
                     
                     Spacer()
                     
@@ -286,6 +268,12 @@ struct NotesTabView: View {
     private var averageNotesPerHabit: Int {
         guard habitsWithNotesCount > 0 else { return 0 }
         return Int(Double(recentNotesCount) / Double(habitsWithNotesCount))
+    }
+    
+    private var todayDateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d"
+        return formatter.string(from: Date())
     }
     
     // MARK: - All Notes View

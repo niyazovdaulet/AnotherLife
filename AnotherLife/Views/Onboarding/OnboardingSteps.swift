@@ -16,17 +16,37 @@ struct WelcomeStep: View {
         VStack(spacing: 32) {
             Spacer()
             
-            // Hero Image/Icon
+            // Hero Image/Icon with enhanced glow
             ZStack {
+                // Outer glow
+                Circle()
+                    .fill(Color.primaryGradient)
+                    .frame(width: 140, height: 140)
+                    .blur(radius: 12)
+                    .opacity(0.3)
+                
+                // Main icon container
                 Circle()
                     .fill(
                         LinearGradient(
-                            gradient: Gradient(colors: [Color.primaryBlue.opacity(0.1), Color.purple.opacity(0.1)]),
+                            gradient: Gradient(colors: [Color.primaryBlue.opacity(0.15), Color.primaryPurple.opacity(0.1)]),
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .frame(width: 120, height: 120)
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.2), Color.white.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2
+                            )
+                    )
+                    .shadow(color: .primaryBlue.opacity(0.3), radius: 20, x: 0, y: 10)
                 
                 Image(systemName: "calendar.badge.checkmark")
                     .font(.system(size: 48, weight: .semibold))
@@ -50,17 +70,32 @@ struct WelcomeStep: View {
             
             VStack(spacing: 16) {
                 Button(action: next) {
-                    Text("Get Started")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
+                    HStack(spacing: 10) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 18, weight: .semibold))
+                        Text("Get Started")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        ZStack {
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.primaryBlue)
-                                .shadow(color: .primaryBlue.opacity(0.3), radius: 8, x: 0, y: 4)
-                        )
+                                .fill(Color.primaryGradient)
+                                .shadow(color: .primaryBlue.opacity(0.4), radius: 12, x: 0, y: 6)
+                            
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        }
+                    )
                 }
                 .buttonStyle(PlainButtonStyle())
                 
@@ -485,25 +520,31 @@ struct ThemeFinishStep: View {
             // Finish Button
             VStack(spacing: 16) {
                 Button(action: finish) {
-                    HStack {
+                    HStack(spacing: 10) {
                         Image(systemName: "sparkles")
+                            .font(.system(size: 18, weight: .semibold))
                         Text("Start Day One")
+                            .font(.system(size: 18, weight: .semibold))
                     }
-                    .font(.headline)
-                    .fontWeight(.semibold)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                     .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [Color.primaryBlue, Color.purple]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.primaryGradient)
+                                .shadow(color: .primaryBlue.opacity(0.4), radius: 12, x: 0, y: 6)
+                            
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
                                 )
-                            )
-                            .shadow(color: .primaryBlue.opacity(0.3), radius: 12, x: 0, y: 6)
+                        }
                     )
                 }
                 .buttonStyle(PlainButtonStyle())

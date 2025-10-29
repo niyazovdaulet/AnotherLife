@@ -187,7 +187,7 @@ struct SettingsView: View {
                     .fontWeight(.bold)
                     .foregroundColor(.textPrimary)
                 
-                Text("Version 1.0.0")
+                Text("Version 1.3.1")
                     .font(.caption)
                     .foregroundColor(.textSecondary)
             }
@@ -365,17 +365,6 @@ struct HabitManagementRowView: View {
                 }
                 
                 HStack(spacing: 8) {
-                    Text(habit.frequency.displayName)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule()
-                                .fill(Color.primaryBlue.opacity(0.1))
-                        )
-                        .foregroundColor(.primaryBlue)
-                    
                     Text(habit.isPositive ? "Positive" : "Negative")
                         .font(.caption)
                         .fontWeight(.medium)

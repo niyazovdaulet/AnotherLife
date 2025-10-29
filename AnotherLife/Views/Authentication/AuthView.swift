@@ -81,18 +81,31 @@ struct AuthView: View {
     // MARK: - Header View
     private var headerView: some View {
         VStack(spacing: 16) {
-            // App Icon
+            // App Icon with enhanced glow
             ZStack {
+                // Outer glow
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.primaryBlue, Color.primaryGreen]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(Color.primaryGradient)
+                    .frame(width: 120, height: 120)
+                    .blur(radius: 12)
+                    .opacity(0.4)
+                
+                // Main icon
+                Circle()
+                    .fill(Color.primaryGradient)
                     .frame(width: 100, height: 100)
-                    .shadow(color: .primaryBlue.opacity(0.3), radius: 20, x: 0, y: 10)
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2
+                            )
+                    )
+                    .shadow(color: .primaryBlue.opacity(0.4), radius: 24, x: 0, y: 12)
                 
                 Image(systemName: "star.circle.fill")
                     .font(.system(size: 50))
@@ -234,16 +247,22 @@ struct AuthView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [Color.primaryBlue, Color.primaryGreen]),
-                                startPoint: .leading,
-                                endPoint: .trailing
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.primaryGradient)
+                            .shadow(color: .primaryBlue.opacity(0.4), radius: 12, x: 0, y: 6)
+                        
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
                             )
-                        )
+                    }
                 )
-                .shadow(color: .primaryBlue.opacity(0.3), radius: 8, x: 0, y: 4)
             }
             .scaleEffect(isButtonPressed ? 0.95 : 1.0)
             .disabled(authManager.isLoading || !isFormValid)
@@ -251,10 +270,40 @@ struct AuthView: View {
         }
         .padding(24)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
+            ZStack {
+                // Glass-like background
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Material.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.2),
+                                        Color.white.opacity(0.05)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                
+                // Subtle gradient overlay
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.primaryBlue.opacity(0.03),
+                                Color.primaryPurple.opacity(0.02)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
         )
+        .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
     }
     
     // MARK: - Social Sign-In View
@@ -297,13 +346,27 @@ struct AuthView: View {
                 .font(.body)
                 .foregroundColor(.textSecondary)
             
-            Button(action: { isSignUpMode.toggle() }) {
+            Button(action: { 
+                // Clear all text fields when switching modes
+                clearFormFields()
+                isSignUpMode.toggle()
+            }) {
                 Text(isSignUpMode ? "Sign In" : "Sign Up")
                     .font(.body)
                     .fontWeight(.semibold)
                     .foregroundColor(.primaryBlue)
             }
         }
+    }
+    
+    // MARK: - Helper Methods
+    private func clearFormFields() {
+        email = ""
+        password = ""
+        username = ""
+        displayName = ""
+        confirmPassword = ""
+        authManager.errorMessage = nil
     }
     
     // MARK: - Computed Properties

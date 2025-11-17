@@ -5,55 +5,79 @@ import Charts
 struct WeeklyReportView: View {
     @EnvironmentObject var habitManager: HabitManager
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedWeek: Date = Date()
+    @State private var startDate: Date = {
+        let calendar = Calendar.current
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        return weekStart
+    }()
+    @State private var endDate: Date = {
+        let calendar = Calendar.current
+        let weekEnd = calendar.dateInterval(of: .weekOfYear, for: Date())?.end ?? Date()
+        return weekEnd
+    }()
+    @State private var showingDatePicker = false
     
-    private var weekStart: Date {
-        Calendar.current.dateInterval(of: .weekOfYear, for: selectedWeek)?.start ?? selectedWeek
+    private var dateRange: DateInterval {
+        DateInterval(start: startDate, end: endDate)
     }
     
-    private var weekEnd: Date {
-        Calendar.current.dateInterval(of: .weekOfYear, for: selectedWeek)?.end ?? selectedWeek
-    }
-    
-    private var weekRange: DateInterval {
-        DateInterval(start: weekStart, end: weekEnd)
+    private var canGoToNextWeek: Bool {
+        let calendar = Calendar.current
+        let nextWeekStart = calendar.date(byAdding: .weekOfYear, value: 1, to: startDate) ?? startDate
+        let today = calendar.startOfDay(for: Date())
+        let nextWeekStartDay = calendar.startOfDay(for: nextWeekStart)
+        return nextWeekStartDay <= today
     }
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Week Selector
-                    weekSelectorView
-                    
-                    // Week Summary
-                    weekSummaryView
-                    
-                    // Streaks Kept
-                    streaksKeptView
-                    
-                    // Streaks Broken
-                    streaksBrokenView
-                    
-                    // Habits Skipped
-                    habitsSkippedView
-                    
-                    // Daily Breakdown
-                    dailyBreakdownView
-                    
-                    // Insights
-                    insightsView
+            ZStack {
+                // Background
+                Color.background
+                    .ignoresSafeArea()
+                
+                // Subtle gradient overlay for depth
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.background,
+                        Color.background.opacity(0.8)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Week Selector
+                        weekSelectorView
+                        
+                        // Week Summary
+                        weekSummaryView
+                        
+                        // Streaks Kept
+                        streaksKeptView
+                        
+                        // Daily Breakdown
+                        dailyBreakdownView
+                        
+                        // Insights
+                        insightsView
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .padding(.bottom, 20)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
             }
             .navigationTitle("Weekly Report")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primaryBlue)
                 }
             }
         }
@@ -61,68 +85,132 @@ struct WeeklyReportView: View {
     
     // MARK: - Week Selector
     private var weekSelectorView: some View {
-        VStack(spacing: 12) {
-            Text("Select Week")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
-            
-            HStack {
-                Button(action: previousWeek) {
-                    Image(systemName: "chevron.left")
-                        .font(.title2)
-                        .foregroundColor(.primaryBlue)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(Color.primaryBlue.opacity(0.1))
-                        )
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                Spacer()
-                
-                VStack(spacing: 4) {
-                    Text(weekDateText)
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.textPrimary)
-                    
-                    Text("Week of \(weekStart, formatter: weekFormatter)")
-                        .font(.subheadline)
-                        .foregroundColor(.textSecondary)
-                }
-                
-                Spacer()
-                
-                Button(action: nextWeek) {
-                    Image(systemName: "chevron.right")
-                        .font(.title2)
-                        .foregroundColor(.primaryBlue)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(Color.primaryBlue.opacity(0.1))
-                        )
-                }
-                .buttonStyle(PlainButtonStyle())
+        HStack(spacing: 12) {
+            // Previous button
+            Button(action: previousWeek) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 40, height: 40)
+                    .background(
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue, Color.primaryPurple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .shadow(color: .primaryBlue.opacity(0.3), radius: 4, x: 0, y: 2)
+                    )
             }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Date range button
+            Button(action: {
+                showingDatePicker = true
+            }) {
+                HStack(spacing: 12) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primaryBlue)
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Circle()
+                                .fill(Color.primaryBlue.opacity(0.1))
+                        )
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(weekRangeText)
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundColor(.textPrimary)
+                        
+                        Text("Tap to change")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.textSecondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.textSecondary.opacity(0.6))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.cardBackground.opacity(0.6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.primaryBlue.opacity(0.15), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Next button
+            Button(action: nextWeek) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(canGoToNextWeek ? .white : .gray.opacity(0.5))
+                    .frame(width: 40, height: 40)
+                    .background(
+                        Circle()
+                            .fill(
+                                canGoToNextWeek ?
+                                LinearGradient(
+                                    colors: [Color.primaryBlue, Color.primaryPurple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ) :
+                                LinearGradient(
+                                    colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.2)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .shadow(color: canGoToNextWeek ? .primaryBlue.opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
+                    )
+            }
+            .buttonStyle(PlainButtonStyle())
+            .disabled(!canGoToNextWeek)
         }
-        .padding(20)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 18)
                 .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
         )
+        .sheet(isPresented: $showingDatePicker) {
+            WeekDatePickerView(startDate: $startDate, endDate: $endDate)
+        }
+    }
+    
+    private var weekRangeText: String {
+        let startFormatter = DateFormatter()
+        startFormatter.dateFormat = "MMM d"
+        let endFormatter = DateFormatter()
+        endFormatter.dateFormat = "MMM d, yyyy"
+        return "\(startFormatter.string(from: startDate)) - \(endFormatter.string(from: endDate))"
     }
     
     // MARK: - Week Summary
     private var weekSummaryView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Week Summary")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text("Week Summary")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.textPrimary)
+                
+                Spacer()
+            }
             
-            HStack(spacing: 16) {
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 12),
+                GridItem(.flexible(), spacing: 12)
+            ], spacing: 12) {
                 SummaryCardView(
                     title: "Completion Rate",
                     value: "\(Int(weekCompletionRate))%",
@@ -136,9 +224,7 @@ struct WeeklyReportView: View {
                     icon: "star.fill",
                     color: .primaryGreen
                 )
-            }
-            
-            HStack(spacing: 16) {
+                
                 SummaryCardView(
                     title: "Streaks Kept",
                     value: "\(streaksKeptCount)",
@@ -147,16 +233,16 @@ struct WeeklyReportView: View {
                 )
                 
                 SummaryCardView(
-                    title: "Streaks Broken",
-                    value: "\(streaksBrokenCount)",
-                    icon: "xmark.circle.fill",
-                    color: .red
+                    title: "Days Active",
+                    value: "\(daysActive)",
+                    icon: "calendar.badge.checkmark",
+                    color: .primaryPurple
                 )
             }
         }
-        .padding(20)
+        .padding(24)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 20)
                 .fill(Color.cardBackground)
                 .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         )
@@ -164,23 +250,43 @@ struct WeeklyReportView: View {
     
     // MARK: - Streaks Kept
     private var streaksKeptView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Streaks Kept 🔥")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text("Streaks Kept")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.textPrimary)
+                
+                Image(systemName: "flame.fill")
+                    .font(.title3)
+                    .foregroundColor(.orange)
+                
+                Spacer()
+            }
             
             if streaksKept.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "flame")
-                        .font(.system(size: 40))
-                        .foregroundColor(.textSecondary.opacity(0.6))
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.textSecondary.opacity(0.1))
+                            .frame(width: 80, height: 80)
+                        
+                        Image(systemName: "flame")
+                            .font(.system(size: 50))
+                            .foregroundColor(.textSecondary.opacity(0.6))
+                    }
                     
                     Text("No streaks kept this week")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("Start building your streaks by completing habits consistently!")
                         .font(.subheadline)
                         .foregroundColor(.textSecondary)
+                        .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
+                .padding(.vertical, 32)
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(streaksKept, id: \.habit.id) { streak in
@@ -193,86 +299,9 @@ struct WeeklyReportView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(24)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
-        )
-    }
-    
-    // MARK: - Streaks Broken
-    private var streaksBrokenView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Streaks Broken 💔")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
-            
-            if streaksBroken.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.green)
-                    
-                    Text("All streaks maintained! 🎉")
-                        .font(.subheadline)
-                        .foregroundColor(.textSecondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
-                LazyVStack(spacing: 12) {
-                    ForEach(streaksBroken, id: \.habit.id) { streak in
-                        StreakItemView(
-                            habit: streak.habit,
-                            streakLength: streak.length,
-                            isKept: false
-                        )
-                    }
-                }
-            }
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
-        )
-    }
-    
-    // MARK: - Habits Skipped
-    private var habitsSkippedView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Habits Skipped ⏭️")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
-            
-            if skippedHabits.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.green)
-                    
-                    Text("No habits skipped this week!")
-                        .font(.subheadline)
-                        .foregroundColor(.textSecondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
-                LazyVStack(spacing: 12) {
-                    ForEach(skippedHabits, id: \.habit.id) { skipped in
-                        SkippedHabitView(
-                            habit: skipped.habit,
-                            skipCount: skipped.count
-                        )
-                    }
-                }
-            }
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 20)
                 .fill(Color.cardBackground)
                 .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         )
@@ -280,10 +309,15 @@ struct WeeklyReportView: View {
     
     // MARK: - Daily Breakdown
     private var dailyBreakdownView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Daily Breakdown")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text("Daily Breakdown")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.textPrimary)
+                
+                Spacer()
+            }
             
             if #available(iOS 16.0, *) {
                 Chart(dailyData) { data in
@@ -336,9 +370,9 @@ struct WeeklyReportView: View {
                 .frame(height: 200)
             }
         }
-        .padding(20)
+        .padding(24)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 20)
                 .fill(Color.cardBackground)
                 .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         )
@@ -346,44 +380,62 @@ struct WeeklyReportView: View {
     
     // MARK: - Insights
     private var insightsView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Weekly Insights")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text("Weekly Insight")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.textPrimary)
+                
+                Spacer()
+            }
             
-            LazyVStack(spacing: 12) {
-                ForEach(weeklyInsights, id: \.id) { insight in
-                    InsightCardView(insight: insight)
-                }
+            if let weeklyInsight = currentWeeklyInsight {
+                InsightCardView(insight: weeklyInsight)
             }
         }
-        .padding(20)
+        .padding(24)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 20)
                 .fill(Color.cardBackground)
                 .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         )
     }
     
     // MARK: - Computed Properties
-    private var weekDateText: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        return formatter.string(from: selectedWeek)
-    }
     
-    private var weekFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter
+    private var daysActive: Int {
+        let calendar = Calendar.current
+        var activeDays = Set<Date>()
+        
+        var currentDate = calendar.startOfDay(for: startDate)
+        let endDateDay = calendar.startOfDay(for: endDate)
+        
+        while currentDate <= endDateDay {
+            let hasAnyEntry = habitManager.entries.contains { entry in
+                calendar.isDate(entry.date, inSameDayAs: currentDate)
+            }
+            if hasAnyEntry {
+                activeDays.insert(currentDate)
+            }
+            
+            guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
+            currentDate = nextDate
+        }
+        
+        return activeDays.count
     }
     
     private var weekCompletionRate: Double {
         guard !habitManager.habits.isEmpty else { return 0 }
         
-        let totalPossibleEntries = habitManager.habits.count * 7
+        let calendar = Calendar.current
+        let daysInRange = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 7
+        let daysCount = max(daysInRange, 1)
+        
+        let totalPossibleEntries = habitManager.habits.count * daysCount
         let completedEntries = habitManager.habits.reduce(0) { total, habit in
-            let entries = habitManager.getEntries(for: habit, in: weekRange)
+            let entries = habitManager.getEntries(for: habit, in: dateRange)
             return total + entries.filter { $0.status == .completed }.count
         }
         
@@ -392,30 +444,9 @@ struct WeeklyReportView: View {
     
     private var streaksKept: [StreakInfo] {
         habitManager.habits.compactMap { habit in
-            let stats = habitManager.getStatistics(for: habit, in: weekRange)
+            let stats = habitManager.getStatistics(for: habit, in: dateRange)
             if stats.currentStreak > 0 {
                 return StreakInfo(habit: habit, length: stats.currentStreak)
-            }
-            return nil
-        }
-    }
-    
-    private var streaksBroken: [StreakInfo] {
-        habitManager.habits.compactMap { habit in
-            let stats = habitManager.getStatistics(for: habit, in: weekRange)
-            if stats.failedDays > 0 {
-                return StreakInfo(habit: habit, length: stats.currentStreak)
-            }
-            return nil
-        }
-    }
-    
-    private var skippedHabits: [SkippedHabit] {
-        habitManager.habits.compactMap { habit in
-            let entries = habitManager.getEntries(for: habit, in: weekRange)
-            let skipCount = entries.filter { $0.status == .skipped }.count
-            if skipCount > 0 {
-                return SkippedHabit(habit: habit, count: skipCount)
             }
             return nil
         }
@@ -425,93 +456,215 @@ struct WeeklyReportView: View {
         streaksKept.count
     }
     
-    private var streaksBrokenCount: Int {
-        streaksBroken.count
+    // MARK: - Weekly Insights
+    private static let motivationalInsights: [WeeklyInsight] = [
+        WeeklyInsight(
+            type: .success,
+            title: "Consistency is Key",
+            message: "Small daily actions compound into remarkable results. Every habit you complete today is a step toward your best self.",
+            icon: "star.fill"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "Progress Over Perfection",
+            message: "Don't wait for the perfect moment. Start where you are, use what you have, and do what you can. Progress, not perfection, leads to success.",
+            icon: "chart.line.uptrend.xyaxis"
+        ),
+        WeeklyInsight(
+            type: .good,
+            title: "Your Future Self Thanks You",
+            message: "The habits you build today are gifts to your future self. Every completed habit is an investment in who you're becoming.",
+            icon: "gift.fill"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "Momentum Builds Momentum",
+            message: "Success breeds success. Each completed habit creates momentum that makes the next one easier. Keep the streak alive!",
+            icon: "arrow.triangle.2.circlepath"
+        ),
+        WeeklyInsight(
+            type: .good,
+            title: "You Are Stronger Than Your Excuses",
+            message: "When motivation fades, discipline takes over. Your commitment to your habits defines your character more than your intentions.",
+            icon: "shield.fill"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "One Percent Better Every Day",
+            message: "If you improve by just 1% each day, you'll be 37 times better by the end of the year. Small consistent changes create extraordinary results.",
+            icon: "arrow.up.circle.fill"
+        ),
+        WeeklyInsight(
+            type: .good,
+            title: "Habits Shape Identity",
+            message: "You become what you repeatedly do. Your habits are casting votes for the type of person you want to become. Make every day count.",
+            icon: "person.fill.checkmark"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "The Compound Effect",
+            message: "Great things come from small beginnings. Your daily habits, no matter how small, compound over time into life-changing results.",
+            icon: "sparkles"
+        ),
+        WeeklyInsight(
+            type: .good,
+            title: "Discipline is Freedom",
+            message: "The freedom to do what you want comes from the discipline to do what you must. Your habits are the bridge between goals and achievement.",
+            icon: "lock.open.fill"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "Trust the Process",
+            message: "Results take time. Trust that your consistent effort is building something meaningful, even when you can't see it yet.",
+            icon: "eye.fill"
+        ),
+        WeeklyInsight(
+            type: .good,
+            title: "Your Habits Are Your Superpower",
+            message: "While others rely on motivation, you've built discipline. Your habits are your superpower that works even when motivation doesn't.",
+            icon: "bolt.fill"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "The Journey Matters",
+            message: "Focus on the process, not just the outcome. The person you become while building habits is more valuable than any single goal achieved.",
+            icon: "map.fill"
+        ),
+        WeeklyInsight(
+            type: .good,
+            title: "Every Expert Was Once a Beginner",
+            message: "Mastery comes from consistent practice. Your daily habits are turning you into an expert at living your best life, one day at a time.",
+            icon: "graduationcap.fill"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "Your Willpower is Renewable",
+            message: "Each completed habit strengthens your willpower muscle. The more you use it, the stronger it becomes. Keep going!",
+            icon: "battery.100"
+        ),
+        WeeklyInsight(
+            type: .good,
+            title: "Today's Actions Define Tomorrow",
+            message: "The future is created by what you do today. Your habits today are shaping your life tomorrow. Make them count!",
+            icon: "calendar.badge.clock"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "Consistency Beats Intensity",
+            message: "Showing up every day, even when it's hard, beats sporadic bursts of effort. Your consistent habits are your greatest asset.",
+            icon: "clock.fill"
+        ),
+        WeeklyInsight(
+            type: .good,
+            title: "You're Building Your Legacy",
+            message: "Every habit you complete is a brick in the foundation of your future. You're not just tracking habits—you're building your legacy.",
+            icon: "building.columns.fill"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "Your Best Investment is Yourself",
+            message: "Time spent building good habits is the best investment you can make. The returns compound for the rest of your life.",
+            icon: "dollarsign.circle.fill"
+        ),
+        WeeklyInsight(
+            type: .good,
+            title: "Progress is Perfection",
+            message: "Don't aim for perfection—aim for progress. Every day you maintain your habits, you're winning. Keep moving forward!",
+            icon: "arrow.forward.circle.fill"
+        ),
+        WeeklyInsight(
+            type: .success,
+            title: "You Are Capable of Amazing Things",
+            message: "Your ability to maintain habits proves you're capable of amazing things. Trust yourself and keep going. You've got this!",
+            icon: "hand.raised.fill"
+        )
+    ]
+    
+    private var currentWeeklyInsight: WeeklyInsight? {
+        // Use the start date's week as a seed to get a consistent random insight per week
+        let calendar = Calendar.current
+        let weekNumber = calendar.component(.weekOfYear, from: startDate)
+        let year = calendar.component(.year, from: startDate)
+        
+        // Create a unique seed from week number and year
+        let seed = weekNumber + (year * 52)
+        
+        // Use the seed to select an insight (will be the same for the entire week)
+        let index = seed % WeeklyReportView.motivationalInsights.count
+        return WeeklyReportView.motivationalInsights[index]
     }
     
     private var dailyData: [DailyData] {
         let calendar = Calendar.current
         var data: [DailyData] = []
         
-        for i in 0..<7 {
-            if let date = calendar.date(byAdding: .day, value: i, to: weekStart) {
-                let dayName = calendar.shortWeekdaySymbols[calendar.component(.weekday, from: date) - 1]
-                let totalHabits = habitManager.habits.count
-                let completedHabits = habitManager.habits.filter { habit in
-                    if let entry = habitManager.getEntry(for: habit, on: date) {
-                        return entry.status == .completed
-                    }
-                    return false
-                }.count
-                
-                let completionRate = totalHabits > 0 ? Double(completedHabits) / Double(totalHabits) * 100 : 0
-                
-                data.append(DailyData(day: dayName, completionRate: completionRate))
-            }
+        var currentDate = calendar.startOfDay(for: startDate)
+        let endDateDay = calendar.startOfDay(for: endDate)
+        
+        while currentDate <= endDateDay {
+            let dayName = calendar.shortWeekdaySymbols[calendar.component(.weekday, from: currentDate) - 1]
+            let dayNumber = calendar.component(.day, from: currentDate)
+            let monthAbbr = calendar.shortMonthSymbols[calendar.component(.month, from: currentDate) - 1]
+            let displayName = "\(dayName)\n\(monthAbbr) \(dayNumber)"
+            
+            let totalHabits = habitManager.habits.count
+            let completedHabits = habitManager.habits.filter { habit in
+                if let entry = habitManager.getEntry(for: habit, on: currentDate) {
+                    return entry.status == .completed
+                }
+                return false
+            }.count
+            
+            let completionRate = totalHabits > 0 ? Double(completedHabits) / Double(totalHabits) * 100 : 0
+            
+            data.append(DailyData(day: displayName, completionRate: completionRate))
+            
+            guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
+            currentDate = nextDate
         }
         
         return data
     }
     
-    private var weeklyInsights: [WeeklyInsight] {
-        var insights: [WeeklyInsight] = []
-        
-        // Completion rate insight
-        if weekCompletionRate >= 80 {
-            insights.append(WeeklyInsight(
-                type: .success,
-                title: "Excellent Week!",
-                message: "You completed \(Int(weekCompletionRate))% of your habits this week. Keep up the great work!",
-                icon: "star.fill"
-            ))
-        } else if weekCompletionRate >= 60 {
-            insights.append(WeeklyInsight(
-                type: .good,
-                title: "Good Progress",
-                message: "You completed \(Int(weekCompletionRate))% of your habits. Try to improve next week!",
-                icon: "thumbsup.fill"
-            ))
-        } else {
-            insights.append(WeeklyInsight(
-                type: .warning,
-                title: "Room for Improvement",
-                message: "You completed \(Int(weekCompletionRate))% of your habits. Focus on consistency!",
-                icon: "exclamationmark.triangle.fill"
-            ))
-        }
-        
-        // Streak insights
-        if streaksKeptCount > 0 {
-            insights.append(WeeklyInsight(
-                type: .success,
-                title: "Streaks Maintained",
-                message: "You kept \(streaksKeptCount) habit streak(s) alive this week!",
-                icon: "flame.fill"
-            ))
-        }
-        
-        if streaksBrokenCount > 0 {
-            insights.append(WeeklyInsight(
-                type: .warning,
-                title: "Streaks Broken",
-                message: "\(streaksBrokenCount) habit streak(s) were broken. Don't worry, start fresh!",
-                icon: "heart.fill"
-            ))
-        }
-        
-        return insights
-    }
     
     // MARK: - Actions
     private func previousWeek() {
+        let calendar = Calendar.current
+        let daysInRange = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 7
+        
         withAnimation(.easeInOut(duration: 0.3)) {
-            selectedWeek = Calendar.current.date(byAdding: .weekOfYear, value: -1, to: selectedWeek) ?? selectedWeek
+            if let newEndDate = calendar.date(byAdding: .day, value: -1, to: startDate) {
+                if let newStartDate = calendar.date(byAdding: .day, value: -daysInRange, to: newEndDate) {
+                    startDate = newStartDate
+                    endDate = newEndDate
+                }
+            }
         }
     }
     
     private func nextWeek() {
+        guard canGoToNextWeek else { return }
+        
+        let calendar = Calendar.current
+        let daysInRange = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 7
+        
         withAnimation(.easeInOut(duration: 0.3)) {
-            selectedWeek = Calendar.current.date(byAdding: .weekOfYear, value: 1, to: selectedWeek) ?? selectedWeek
+            if let newStartDate = calendar.date(byAdding: .day, value: 1, to: endDate) {
+                if let newEndDate = calendar.date(byAdding: .day, value: daysInRange, to: newStartDate) {
+                    let today = calendar.startOfDay(for: Date())
+                    let newEndDateDay = calendar.startOfDay(for: newEndDate)
+                    
+                    // Don't allow going past today
+                    if newEndDateDay <= today {
+                        startDate = newStartDate
+                        endDate = newEndDate
+                    } else {
+                        // If the range would go past today, cap it at today
+                        startDate = newStartDate
+                        endDate = today
+                    }
+                }
+            }
         }
     }
 }
@@ -524,34 +677,44 @@ struct SummaryCardView: View {
     let color: Color
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(color.opacity(0.1))
-                    .frame(width: 40, height: 40)
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.2), color.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 52, height: 52)
                 
                 Image(systemName: icon)
-                    .font(.title3)
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(color)
             }
             
-            VStack(spacing: 2) {
+            VStack(spacing: 4) {
                 Text(value)
-                    .font(.title3)
-                    .fontWeight(.bold)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(.textPrimary)
                 
                 Text(title)
-                    .font(.caption)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.textSecondary)
                     .multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(12)
+        .padding(.vertical, 18)
+        .padding(.horizontal, 12)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.background)
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.cardBackground.opacity(0.5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(color.opacity(0.2), lineWidth: 1)
+                )
         )
     }
 }
@@ -562,79 +725,55 @@ struct StreakItemView: View {
     let isKept: Bool
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color(hex: habit.color)?.opacity(0.15) ?? Color.primaryBlue.opacity(0.15))
-                    .frame(width: 40, height: 40)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                (Color(hex: habit.color) ?? .primaryBlue).opacity(0.2),
+                                (Color(hex: habit.color) ?? .primaryBlue).opacity(0.1)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 50, height: 50)
                 
                 Image(systemName: habit.icon)
-                    .font(.title3)
+                    .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(Color(hex: habit.color) ?? .primaryBlue)
             }
             
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(habit.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.textPrimary)
                 
-                Text("\(streakLength) day streak")
-                    .font(.caption)
-                    .foregroundColor(.textSecondary)
+                HStack(spacing: 6) {
+                    Image(systemName: isKept ? "flame.fill" : "xmark.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isKept ? .orange : .red)
+                    
+                    Text("\(streakLength) day streak")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.textSecondary)
+                }
             }
             
             Spacer()
-            
-            Image(systemName: isKept ? "flame.fill" : "xmark.circle.fill")
-                .font(.title3)
-                .foregroundColor(isKept ? .orange : .red)
         }
-        .padding(12)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.background)
-        )
-    }
-}
-
-struct SkippedHabitView: View {
-    let habit: Habit
-    let skipCount: Int
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color(hex: habit.color)?.opacity(0.15) ?? Color.primaryBlue.opacity(0.15))
-                    .frame(width: 40, height: 40)
-                
-                Image(systemName: habit.icon)
-                    .font(.title3)
-                    .foregroundColor(Color(hex: habit.color) ?? .primaryBlue)
-            }
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(habit.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.textPrimary)
-                
-                Text("Skipped \(skipCount) time\(skipCount == 1 ? "" : "s")")
-                    .font(.caption)
-                    .foregroundColor(.textSecondary)
-            }
-            
-            Spacer()
-            
-            Image(systemName: "minus.circle.fill")
-                .font(.title3)
-                .foregroundColor(.blue)
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.background)
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.cardBackground.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(
+                            (Color(hex: habit.color) ?? .primaryBlue).opacity(0.2),
+                            lineWidth: 1
+                        )
+                )
         )
     }
 }
@@ -643,29 +782,47 @@ struct InsightCardView: View {
     let insight: WeeklyInsight
     
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: insight.icon)
-                .font(.title2)
-                .foregroundColor(insight.type.color)
-                .frame(width: 30)
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                insight.type.color.opacity(0.2),
+                                insight.type.color.opacity(0.1)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+                
+                Image(systemName: insight.icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(insight.type.color)
+            }
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(insight.title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.textPrimary)
                 
                 Text(insight.message)
-                    .font(.caption)
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             
             Spacer()
         }
-        .padding(12)
+        .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 14)
                 .fill(insight.type.backgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(insight.type.color.opacity(0.2), lineWidth: 1)
+                )
         )
     }
 }

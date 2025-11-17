@@ -18,7 +18,6 @@ struct CreateChallengeView: View {
     @State private var targetValue = 7
     @State private var selectedHabits: Set<String> = []
     @State private var duration = 7 // days
-    @State private var pointsReward = 100
     
     var body: some View {
         NavigationView {
@@ -266,21 +265,24 @@ struct CreateChallengeView: View {
                     
                     Spacer()
                     
-                    Stepper(value: $pointsReward, in: 10...1000, step: 10) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.yellow)
-                            Text("\(pointsReward)")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.textPrimary)
-                        }
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                        Text("\(calculatedPointsReward)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.textPrimary)
                     }
                 }
                 
-                Text("Participants will earn \(pointsReward) points upon completion")
+                Text("Participants will earn \(calculatedPointsReward) points upon completion")
                     .font(.caption)
                     .foregroundColor(.textSecondary)
+                
+                Text("Points are automatically calculated based on challenge duration to ensure fairness")
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+                    .italic()
             }
         }
         .padding(20)
@@ -298,6 +300,16 @@ struct CreateChallengeView: View {
     
     private var targetUnit: String {
         return "days"
+    }
+    
+    // Calculate points reward based on duration (to prevent cheating)
+    // Formula: Base points (50) + (duration * 10 points per day)
+    // Minimum: 50 points, Maximum: 1000 points
+    private var calculatedPointsReward: Int {
+        let basePoints = 50
+        let pointsPerDay = 10
+        let calculated = basePoints + (duration * pointsPerDay)
+        return min(max(calculated, 50), 1000) // Clamp between 50 and 1000
     }
     
     // MARK: - Helper Methods
@@ -336,7 +348,7 @@ struct CreateChallengeView: View {
                 targetValue: targetValue,
                 targetUnit: targetUnit,
                 duration: duration,
-                pointsReward: pointsReward,
+                pointsReward: calculatedPointsReward,
                 badgeReward: nil,
                 habitIds: []
             )

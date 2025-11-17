@@ -32,6 +32,9 @@ enum DailyStatus: String, CaseIterable {
 
 struct ChallengeDetailView: View {
     let challenge: Challenge
+    var onJoinSuccessNavigate: (() -> Void)? = nil
+    var selectedTabBinding: Binding<Int>? = nil
+    var onJoinSuccess: ((String) -> Void)? = nil // Callback to show alert in parent view
     @EnvironmentObject var challengeManager: ChallengeManager
     @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
@@ -51,6 +54,7 @@ struct ChallengeDetailView: View {
     @State private var showingJoinSuccessAlert = false
     @State private var joinSuccessMessage = ""
     @State private var isSaving = false
+    @State private var shouldPreventDataReload = false
     @State private var showSaveConfirmation = false
     @State private var showCelebration = false
     @State private var celebrationMessage = ""
@@ -84,12 +88,136 @@ struct ChallengeDetailView: View {
         return max(0, calendar.dateComponents([.day], from: today, to: endDate).day ?? 0)
     }
     
+    private var timeRemainingText: String {
+        let calendar = Calendar.current
+        let now = Date()
+        let endDate = challenge.endDate
+        
+        // Check if challenge has ended
+        if endDate <= now {
+            return "Ended"
+        }
+        
+        // Calculate time difference
+        let components = calendar.dateComponents([.day, .hour], from: now, to: endDate)
+        let daysLeft = components.day ?? 0
+        let hoursLeft = components.hour ?? 0
+        
+        // If less than 24 hours remaining, show hours
+        if daysLeft == 0 {
+            if hoursLeft <= 0 {
+                return "Ended"
+            } else if hoursLeft == 1 {
+                return "1 hour left"
+            } else {
+                return "\(hoursLeft) hours left"
+            }
+        } else if daysLeft == 1 && hoursLeft == 0 {
+            return "1 day left"
+        } else {
+            return "\(daysLeft) days left"
+        }
+    }
+    
     private var progressPercentage: Double {
         guard challengeDuration > 0 else { return 0 }
         return min(1.0, Double(currentValue) / Double(challengeDuration))
     }
     
     var body: some View {
+        ZStack {
+            mainContentView
+                .onAppear {
+                    loadChallengeData()
+                }
+                .sheet(isPresented: $showingInviteSheet) {
+                    InviteMembersView(challenge: challenge)
+                }
+                .sheet(isPresented: $showingEditSheet) {
+                    EditChallengeView(challenge: challenge)
+                }
+                .sheet(isPresented: $showingMembersSheet) {
+                    MembersListView(challenge: challenge, members: members)
+                }
+                .sheet(isPresented: $showingLeaderboardSheet) {
+                    LeaderboardListView(challenge: challenge, leaderboard: leaderboard)
+                }
+                .alert("Delete Challenge", isPresented: $showingDeleteAlert) {
+                    Button("Cancel", role: .cancel) { }
+                    Button("Delete", role: .destructive) {
+                        Task {
+                            await deleteChallenge()
+                        }
+                    }
+                } message: {
+                    Text("Are you sure you want to delete this challenge? This action cannot be undone.")
+                }
+                .alert("Challenge Completed! 🎉", isPresented: $showingCompletionAlert) {
+                    Button("Awesome!") {
+                        showingCompletionAlert = false
+                        // Dismiss the detail view to return to challenges list
+                        dismiss()
+                    }
+                } message: {
+                    Text(completionAlertMessage)
+                }
+                .onChange(of: showingCompletionAlert) { oldValue, newValue in
+                }
+                .onChange(of: showingJoinSuccessAlert) { oldValue, newValue in
+                }
+                .overlay(celebrationOverlay)
+                .fullScreenCover(isPresented: $showingJoinSuccessAlert) {
+                    // Present the alert as a fullScreenCover to ensure it appears
+                    ZStack {
+                        Color.clear
+                            .ignoresSafeArea()
+                        
+                        LuxuryJoinSuccessAlert(
+                            isPresented: $showingJoinSuccessAlert,
+                            message: joinSuccessMessage,
+                            onAwesomeButtonTapped: {
+                                
+                                // Allow data reload now that alert is being dismissed
+                                shouldPreventDataReload = false
+                                
+                                // Reload challenge data to reflect the join
+                                loadChallengeData()
+                                
+                                // Dismiss the alert first
+                                showingJoinSuccessAlert = false
+                                
+                                // Use binding if available, otherwise fall back to callback
+                                if let binding = selectedTabBinding {
+                                    // Dismiss the detail view first
+                                    dismiss()
+                                    // Then navigate to "My Challenges" tab (index 0) after a short delay
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            binding.wrappedValue = 0
+                                        }
+                                    }
+                                } else if let navigateCallback = onJoinSuccessNavigate {
+                                    // Fall back to callback if binding not available
+                                    dismiss()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        navigateCallback()
+                                    }
+                                } else {
+                                    // Just dismiss if neither is available
+                                    dismiss()
+                                }
+                            }
+                        )
+                    }
+                }
+            
+            // Join success alert at the top level with highest z-index (backup)
+            joinSuccessAlertOverlay
+        }
+    }
+    
+    // MARK: - Main Content View
+    private var mainContentView: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
@@ -112,7 +240,7 @@ struct ChallengeDetailView: View {
 //                    activityFeedView
                     
                     // Members Section
-                    membersSectionView
+                    //membersSectionView
                     
                     // Leave Challenge Button (for non-owners who are participants)
                     if isParticipant && !isOwner {
@@ -137,68 +265,66 @@ struct ChallengeDetailView: View {
             }
             .presentationDragIndicator(.visible)
         }
-        .onAppear {
-            loadChallengeData()
-        }
-        .sheet(isPresented: $showingInviteSheet) {
-            InviteMembersView(challenge: challenge)
-        }
-        .sheet(isPresented: $showingEditSheet) {
-            EditChallengeView(challenge: challenge)
-        }
-        .sheet(isPresented: $showingMembersSheet) {
-            MembersListView(challenge: challenge, members: members)
-        }
-        .sheet(isPresented: $showingLeaderboardSheet) {
-            LeaderboardListView(challenge: challenge, leaderboard: leaderboard)
-        }
-        .alert("Delete Challenge", isPresented: $showingDeleteAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
-                Task {
-                    await deleteChallenge()
-                }
+    }
+    
+    // MARK: - Celebration Overlay
+    private var celebrationOverlay: some View {
+        Group {
+            if showCelebration {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .zIndex(999)
+                
+                CelebrationView(message: celebrationMessage, points: celebrationPoints)
+                    .zIndex(1000)
             }
-        } message: {
-            Text("Are you sure you want to delete this challenge? This action cannot be undone.")
         }
-        .alert("Challenge Completed! 🎉", isPresented: $showingCompletionAlert) {
-            Button("Awesome!") {
-                print("🚨 Alert dismissed by user")
-                showingCompletionAlert = false
-                // Dismiss the detail view to return to challenges list
-                dismiss()
-            }
-        } message: {
-            Text(completionAlertMessage)
-        }
-        .onChange(of: showingCompletionAlert) { isShowing in
-            print("🚨 Alert state changed - showingCompletionAlert: \(isShowing)")
-        }
-        .overlay(
-            // Celebration overlay
-            Group {
-                if showCelebration {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                        .zIndex(999)
+    }
+    
+    // MARK: - Join Success Alert Overlay
+    @ViewBuilder
+    private var joinSuccessAlertOverlay: some View {
+        if showingJoinSuccessAlert {
+            LuxuryJoinSuccessAlert(
+                isPresented: $showingJoinSuccessAlert,
+                message: joinSuccessMessage,
+                onAwesomeButtonTapped: {
                     
-                    CelebrationView(message: celebrationMessage, points: celebrationPoints)
-                        .zIndex(1000)
+                    // Allow data reload now that alert is being dismissed
+                    shouldPreventDataReload = false
+                    
+                    // Reload challenge data to reflect the join
+                    loadChallengeData()
+                    
+                    // Use binding if available, otherwise fall back to callback
+                    if let binding = selectedTabBinding {
+                        // Dismiss the detail view first
+                        dismiss()
+                        // Then navigate to "My Challenges" tab (index 0) after a short delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                binding.wrappedValue = 0
+                            }
+                        }
+                    } else if let navigateCallback = onJoinSuccessNavigate {
+                        // Fall back to callback if binding not available
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            navigateCallback()
+                        }
+                    } else {
+                        // Just dismiss if neither is available
+                        dismiss()
+                    }
                 }
-            }
-        )
-        .overlay(
-            // Luxury Join Success Alert
-            Group {
-                if showingJoinSuccessAlert {
-                    LuxuryJoinSuccessAlert(
-                        isPresented: $showingJoinSuccessAlert,
-                        message: joinSuccessMessage
-                    )
-                }
-            }
-        )
+            )
+            .zIndex(10000)
+            .allowsHitTesting(true)
+            .ignoresSafeArea()
+        } else {
+            Color.clear
+                .frame(width: 0, height: 0)
+        }
     }
     
     // MARK: - Hero Header
@@ -604,7 +730,7 @@ struct ChallengeDetailView: View {
                         .font(.caption)
                         .foregroundColor(.textSecondary)
                     
-                    Text("\(daysRemaining) days left")
+                    Text(timeRemainingText)
                         .font(.subheadline)
                         .foregroundColor(.textSecondary)
                 }
@@ -723,97 +849,97 @@ struct ChallengeDetailView: View {
 //        }
 //    }
 //    
-    // MARK: - Members Section
-    private var membersSectionView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Members")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.textPrimary)
-                
-                Spacer()
-                
-                Text("\(members.count)")
-                    .font(.subheadline)
-                    .foregroundColor(.textSecondary)
-            }
-            
-            Button(action: { showingMembersSheet = true }) {
-                VStack(spacing: 12) {
-                    if members.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "person.2")
-                                .font(.system(size: 32))
-                                .foregroundColor(.textSecondary)
-                            
-                            Text("No members yet")
-                                .font(.subheadline)
-                                .foregroundColor(.textSecondary)
-                            
-                            Text("Tap to invite friends to join this challenge")
-                                .font(.caption)
-                                .foregroundColor(.textSecondary)
-                        }
-                        .padding(.vertical, 20)
-                    } else {
-                        // Member Avatars
-                        HStack(spacing: -8) {
-                            ForEach(Array(members.prefix(5)), id: \.id) { member in
-                                Circle()
-                                    .fill(Color.primaryBlue.opacity(0.2))
-                                    .frame(width: 40, height: 40)
-                                    .overlay(
-                                        Text(String(member.displayName.prefix(1)))
-                                            .font(.headline)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.primaryBlue)
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.cardBackground, lineWidth: 2)
-                                    )
-                            }
-                            
-                            if members.count > 5 {
-                                Circle()
-                                    .fill(Color.gray.opacity(0.2))
-                                    .frame(width: 40, height: 40)
-                                    .overlay(
-                                        Text("+\(members.count - 5)")
-                                            .font(.caption)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.textSecondary)
-                                    )
-                            }
-                        }
-                        
-                        // Tap hint
-                        HStack {
-                            Text("Tap to view all members")
-                                .font(.caption)
-                                .foregroundColor(.textSecondary)
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.textSecondary)
-                        }
-                    }
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.cardBackground)
-                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-    }
-    
+//    // MARK: - Members Section
+//    private var membersSectionView: some View {
+//        VStack(alignment: .leading, spacing: 16) {
+//            HStack {
+//                Text("Members")
+//                    .font(.title2)
+//                    .fontWeight(.bold)
+//                    .foregroundColor(.textPrimary)
+//                
+//                Spacer()
+//                
+//                Text("\(members.count)")
+//                    .font(.subheadline)
+//                    .foregroundColor(.textSecondary)
+//            }
+//            
+//            Button(action: { showingMembersSheet = true }) {
+//                VStack(spacing: 12) {
+//                    if members.isEmpty {
+//                        VStack(spacing: 12) {
+//                            Image(systemName: "person.2")
+//                                .font(.system(size: 32))
+//                                .foregroundColor(.textSecondary)
+//                            
+//                            Text("No members yet")
+//                                .font(.subheadline)
+//                                .foregroundColor(.textSecondary)
+//                            
+//                            Text("Tap to invite friends to join this challenge")
+//                                .font(.caption)
+//                                .foregroundColor(.textSecondary)
+//                        }
+//                        .padding(.vertical, 20)
+//                    } else {
+//                        // Member Avatars
+//                        HStack(spacing: -8) {
+//                            ForEach(Array(members.prefix(5)), id: \.id) { member in
+//                                Circle()
+//                                    .fill(Color.primaryBlue.opacity(0.2))
+//                                    .frame(width: 40, height: 40)
+//                                    .overlay(
+//                                        Text(String(member.displayName.prefix(1)))
+//                                            .font(.headline)
+//                                            .fontWeight(.bold)
+//                                            .foregroundColor(.primaryBlue)
+//                                    )
+//                                    .overlay(
+//                                        Circle()
+//                                            .stroke(Color.cardBackground, lineWidth: 2)
+//                                    )
+//                            }
+//                            
+//                            if members.count > 5 {
+//                                Circle()
+//                                    .fill(Color.gray.opacity(0.2))
+//                                    .frame(width: 40, height: 40)
+//                                    .overlay(
+//                                        Text("+\(members.count - 5)")
+//                                            .font(.caption)
+//                                            .fontWeight(.bold)
+//                                            .foregroundColor(.textSecondary)
+//                                    )
+//                            }
+//                        }
+//                        
+//                        // Tap hint
+//                        HStack {
+//                            Text("Tap to view all members")
+//                                .font(.caption)
+//                                .foregroundColor(.textSecondary)
+//                            
+//                            Spacer()
+//                            
+//                            Image(systemName: "chevron.right")
+//                                .font(.caption)
+//                                .foregroundColor(.textSecondary)
+//                        }
+//                    }
+//                }
+//                .padding(20)
+//                .frame(maxWidth: .infinity, alignment: .leading)
+//                .background(
+//                    RoundedRectangle(cornerRadius: 16)
+//                        .fill(Color.cardBackground)
+//                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+//                )
+//            }
+//            .buttonStyle(PlainButtonStyle())
+//        }
+//    }
+//    
     // MARK: - Leave Challenge Button
     private var leaveChallengeButton: some View {
         VStack(spacing: 16) {
@@ -1006,7 +1132,6 @@ struct ChallengeDetailView: View {
         
         // Check if user is in the challenge
         if challengeManager.challengeProgress[challenge.id] == nil {
-            print("❌ User not in challenge - cannot save progress")
             isSaving = false
             return
         }
@@ -1027,7 +1152,6 @@ struct ChallengeDetailView: View {
         await MainActor.run {
             // Progress is saved if status and progress are saved (activity is optional for completion)
             if statusSaved && progressSaved {
-                print("✅ Progress saved successfully!")
                 isProgressSaved = true
                 
                 // Reload the current value from the updated progress
@@ -1060,7 +1184,6 @@ struct ChallengeDetailView: View {
                     await challengeManager.refreshChallengeData()
                 }
             } else {
-                print("❌ Failed to save progress - statusSaved: \(statusSaved), progressSaved: \(progressSaved), activitySaved: \(activitySaved)")
             }
             isSaving = false
         }
@@ -1068,37 +1191,41 @@ struct ChallengeDetailView: View {
     
     private func joinChallenge() {
         Task {
-            print("🔄 Joining challenge: \(challenge.id)")
             let joined = await challengeManager.joinChallenge(challenge)
             if joined {
-                print("✅ Successfully joined challenge")
                 await MainActor.run {
-                    // Show luxury success alert
-                    self.joinSuccessMessage = "Successfully joined '\(challenge.title)'! It's now added to My Challenges tab."
-                    self.showingJoinSuccessAlert = true
+                    let message = "Successfully joined '\(challenge.title)'! It's now added to My Challenges tab."
                     
-                    // Reload data to reflect the join
-                    loadChallengeData()
+                    // If we have a parent callback, use it (for when opened from Discover tab)
+                    if let onJoinSuccess = onJoinSuccess {
+                        // Dismiss the detail view first
+                        dismiss()
+                        // Then show alert in parent view after a short delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            onJoinSuccess(message)
+                        }
+                    } else {
+                        // Fallback: try to show alert in this view
+                        self.shouldPreventDataReload = true
+                        self.joinSuccessMessage = message
+                        self.showingJoinSuccessAlert = true
+                    }
                 }
             } else {
-                print("❌ Failed to join challenge")
                 // TODO: Show error alert to user
             }
         }
     }
     
     private func leaveChallenge() async {
-        print("🔄 Leaving challenge: \(challenge.id)")
         let left = await challengeManager.leaveChallenge(challenge)
         if left {
-            print("✅ Successfully left challenge")
             await MainActor.run {
                 // Don't dismiss - just update the UI state
                 // The view will automatically update to show "Join Challenge" button
                 // and the challenge will disappear from "My Challenges" tab
             }
         } else {
-            print("❌ Failed to leave challenge")
             // TODO: Show error alert to user
         }
     }
@@ -1107,7 +1234,6 @@ struct ChallengeDetailView: View {
     private func saveChallenge() {
         isSaved.toggle()
         // TODO: Save challenge to user's saved challenges in Firebase
-        print("Saving challenge: \(challenge.id)")
     }
     
     private func loadChallengeData() {
@@ -1147,7 +1273,6 @@ struct ChallengeDetailView: View {
     
     // Refresh all data for instant updates after actions
     private func refreshAllData() async {
-        print("🔄 ChallengeDetailView: Refreshing all data after action")
         
         await MainActor.run {
             isRefreshingData = true
@@ -1157,7 +1282,6 @@ struct ChallengeDetailView: View {
         await MainActor.run {
             if let updatedProgress = challengeManager.challengeProgress[challenge.id] {
                 currentValue = updatedProgress.currentValue
-                print("✅ Updated currentValue to: \(currentValue)")
             }
         }
         
@@ -1172,7 +1296,6 @@ struct ChallengeDetailView: View {
         
         await MainActor.run {
             isRefreshingData = false
-            print("✅ ChallengeDetailView: All data refreshed successfully")
         }
     }
     
@@ -1242,27 +1365,21 @@ struct ChallengeDetailView: View {
         let newValue = updatedProgress.currentValue
         let duration = challengeDuration
         
-        print("🔍 Checking milestones - newValue: \(newValue), duration: \(duration)")
-        
         // Check for completion milestone (completed all days)
         if newValue >= duration {
-            print("🎉 Challenge completed! Showing celebration...")
-            celebrationMessage = "Challenge Completed! 🎉\nYou earned \(challenge.pointsReward) points!"
-            celebrationPoints = challenge.pointsReward
-            showCelebration = true
+//            celebrationMessage = "Challenge Completed! 🎉\nYou earned \(challenge.pointsReward) points!"
+//            celebrationPoints = challenge.pointsReward
+//            showCelebration = true
             
             // Complete the challenge and award points
             Task {
                 let (success, message, points) = await challengeManager.completeChallengeWithCelebration(challenge)
                 if success {
-                    print("✅ Challenge completed successfully! \(message)")
                     
                     await MainActor.run {
-                        print("🚨 Setting completion alert - showingCompletionAlert: true")
                         // Show completion alert immediately
                         completionAlertMessage = "You've successfully completed \(challenge.title)!\n\nYou earned \(challenge.pointsReward) points! 🎉"
                         showingCompletionAlert = true
-                        print("🚨 Alert message set: \(completionAlertMessage)")
                         
                         // Hide celebration overlay after a shorter time
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -1278,28 +1395,27 @@ struct ChallengeDetailView: View {
                         }
                     }
                 } else {
-                    print("❌ Failed to complete challenge: \(message)")
                 }
             }
         }
-        // Check for streak milestones (every 3 days)
-        else if newValue % 3 == 0 && newValue > 0 {
-            celebrationMessage = "\(newValue) Day Streak! 🔥"
-            celebrationPoints = 10
-            showCelebration = true
-        }
-        // Check for halfway point
-        else if newValue == duration / 2 {
-            celebrationMessage = "Halfway There! 💪"
-            celebrationPoints = 5
-            showCelebration = true
-        }
-        // Check for first completion
-        else if newValue == 1 {
-            celebrationMessage = "Great Start! 🚀"
-            celebrationPoints = 2
-            showCelebration = true
-        }
+//        // Check for streak milestones (every 3 days)
+//        else if newValue % 3 == 0 && newValue > 0 {
+//            celebrationMessage = "\(newValue) Day Streak! 🔥"
+//            celebrationPoints = 10
+//            showCelebration = true
+//        }
+//        // Check for halfway point
+//        else if newValue == duration / 2 {
+//            celebrationMessage = "Halfway There! 💪"
+//            celebrationPoints = 5
+//            showCelebration = true
+//        }
+//        // Check for first completion
+//        else if newValue == 1 {
+//            celebrationMessage = "Great Start! 🚀"
+//            celebrationPoints = 2
+//            showCelebration = true
+//        }
         
         // Hide celebration after 2 seconds
         if showCelebration {
@@ -1312,16 +1428,13 @@ struct ChallengeDetailView: View {
     }
     
     private func deleteChallenge() async {
-        print("🔄 Deleting challenge: \(challenge.id)")
         let deleted = await challengeManager.deleteChallenge(challenge)
         if deleted {
-            print("✅ Successfully deleted challenge")
             await MainActor.run {
                 // Dismiss the view after successful deletion
                 dismiss()
             }
         } else {
-            print("❌ Failed to delete challenge")
             // TODO: Show error alert to user
         }
     }
@@ -1453,7 +1566,6 @@ struct EditChallengeView: View {
     @State private var selectedType: ChallengeType
     @State private var selectedPrivacy: ChallengePrivacy
     @State private var duration: Int
-    @State private var pointsReward: Int
     @State private var isLoading = false
     @State private var showingSuccessAlert = false
     @State private var showingErrorAlert = false
@@ -1467,12 +1579,21 @@ struct EditChallengeView: View {
         _description = State(initialValue: challenge.description)
         _selectedType = State(initialValue: challenge.type)
         _selectedPrivacy = State(initialValue: challenge.privacy)
-        _pointsReward = State(initialValue: challenge.pointsReward)
         
         // Calculate current duration from start and end dates
         let calendar = Calendar.current
         let days = calendar.dateComponents([.day], from: challenge.startDate, to: challenge.endDate).day ?? 7
         _duration = State(initialValue: max(1, days))
+    }
+    
+    // Calculate points reward based on duration (to prevent cheating)
+    // Formula: Base points (50) + (duration * 10 points per day)
+    // Minimum: 50 points, Maximum: 1000 points
+    private var calculatedPointsReward: Int {
+        let basePoints = 50
+        let pointsPerDay = 10
+        let calculated = basePoints + (duration * pointsPerDay)
+        return min(max(calculated, 50), 1000) // Clamp between 50 and 1000
     }
     
     var body: some View {
@@ -1765,21 +1886,24 @@ struct EditChallengeView: View {
                     
                     Spacer()
                     
-                    Stepper(value: $pointsReward, in: 10...1000, step: 10) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.yellow)
-                            Text("\(pointsReward)")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.textPrimary)
-                        }
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                        Text("\(calculatedPointsReward)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.textPrimary)
                     }
                 }
                 
-                Text("Participants will earn \(pointsReward) points upon completion")
+                Text("Participants will earn \(calculatedPointsReward) points upon completion")
                     .font(.caption)
                     .foregroundColor(.textSecondary)
+                
+                Text("Points are automatically calculated based on challenge duration to ensure fairness")
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+                    .italic()
             }
         }
         .padding(20)
@@ -1847,7 +1971,7 @@ struct EditChallengeView: View {
                 type: selectedType,
                 privacy: selectedPrivacy,
                 duration: duration,
-                pointsReward: pointsReward,
+                pointsReward: calculatedPointsReward,
                 badgeReward: challenge.badgeReward
             )
             

@@ -15,11 +15,11 @@ final class OnboardingViewModel: ObservableObject {
     @Published var selectedTemplates = Set<HabitTemplate>()
     @Published var wantsReminders = false
     @Published var reminderTime = Calendar.current.date(from: DateComponents(hour: 9, minute: 0)) ?? Date()
-    @Published var theme: AppTheme = .system
     
     @AppStorage("hasCompletedOnboarding") private var hasCompleted = false
+    @AppStorage("isFirstTimeRun") private var isFirstTimeRun = true
     
-    private let totalSteps = 5
+    private let totalSteps = 4
     
     var progress: Double {
         return Double(step + 1) / Double(totalSteps)
@@ -30,8 +30,7 @@ final class OnboardingViewModel: ObservableObject {
         case 0: return true // Welcome - can always proceed
         case 1: return !selectedAreas.isEmpty // Focus areas - need at least one
         case 2: return !selectedTemplates.isEmpty // Templates - need at least one
-        case 3: return true // Reminders - optional
-        case 4: return true // Theme - can always finish
+        case 3: return true // Reminders - optional, final step
         default: return false
         }
     }
@@ -84,8 +83,16 @@ final class OnboardingViewModel: ObservableObject {
             scheduleDailyCheckInReminder(at: reminderTime)
         }
         
-        // Update theme settings
-        habitManager.updateTheme(theme)
+        // Save reminder settings to UserDefaults
+        UserDefaults.standard.set(wantsReminders, forKey: "dailyRemindersEnabled")
+        if wantsReminders {
+            UserDefaults.standard.set(reminderTime, forKey: "dailyReminderTime")
+        }
+        
+        // Mark first time run as complete (if it was first time)
+        if isFirstTimeRun {
+            isFirstTimeRun = false
+        }
         
         // Mark onboarding as completed
         hasCompleted = true
@@ -105,6 +112,8 @@ final class OnboardingViewModel: ObservableObject {
             content.body = "Time to check in with your habits!"
             content.sound = .default
             content.badge = 1
+            // Uses default iOS notification settings (banners, badge, notification center)
+            // Users can customize notification styles in iPhone Settings
             
             let request = UNNotificationRequest(
                 identifier: "daily_check_in",

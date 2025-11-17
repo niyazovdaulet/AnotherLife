@@ -1,6 +1,7 @@
 
 
 import SwiftUI
+import UserNotifications
 
 struct ContentView: View {
     @EnvironmentObject var habitManager: HabitManager
@@ -10,6 +11,7 @@ struct ContentView: View {
     @State private var showWelcomeMessage = false
     @State private var justAuthenticated = false
     @State private var splashIconScale: CGFloat = 1.0
+    @Environment(\.scenePhase) private var scenePhase
     
     var body: some View {
         ZStack {
@@ -64,8 +66,8 @@ struct ContentView: View {
                             challengeManager.setupRealTimeListeners()
                         }
                     }
-                    .onChange(of: authManager.isAuthenticated) { isAuthenticated in
-                        if isAuthenticated {
+                    .onChange(of: authManager.isAuthenticated) { oldValue, newValue in
+                        if newValue {
                             // Set up listeners when user becomes authenticated
                             challengeManager.setAuthManager(authManager)
                             challengeManager.setupRealTimeListeners()
@@ -97,6 +99,14 @@ struct ContentView: View {
                 }
                 }
                 .animation(.easeInOut(duration: 0.4), value: authManager.isAuthenticated)
+                .onChange(of: scenePhase) { oldValue, newValue in
+                    if newValue == .active {
+                        clearNotificationBadge()
+                    }
+                }
+                .onAppear {
+                    clearNotificationBadge()
+                }
                 
                 // Welcome Message Overlay
                 if showWelcomeMessage {
@@ -499,6 +509,7 @@ struct MainHabitView: View {
             
             if habitManager.habits.isEmpty {
                 emptyStateView
+                    .padding(.top, 8)
             } else {
                 // Middle Section with Summary Stats and Add Habit Button
                 middleSectionView
@@ -625,54 +636,133 @@ struct MainHabitView: View {
     
     // MARK: - Empty State View
     private var emptyStateView: some View {
-        VStack(spacing: 24) {
-            ZStack {
-                Circle()
-                    .fill(Color.primaryBlue.opacity(0.1))
-                    .frame(width: 120, height: 120)
-                
-                Image(systemName: "star.circle.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.primaryBlue)
-            }
+        VStack(spacing: 0) {
+            Spacer()
             
-            VStack(spacing: 12) {
-                Text("Start Your Journey")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.textPrimary)
-                
-                Text("Build better habits, one day at a time.\nAdd your first habit to get started.")
-                    .font(.body)
-                    .foregroundColor(.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-            }
-            
-            Button(action: { showingAddHabit = true }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle.fill")
-                    Text("Add Your First Habit")
+            VStack(spacing: 32) {
+                // Modern Animated Icon with Gradient
+                ZStack {
+                    // Outer glow effect
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.primaryBlue.opacity(0.15),
+                                    Color.primaryPurple.opacity(0.1)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 160, height: 160)
+                        .blur(radius: 30)
+                    
+                    // Middle glow
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.primaryBlue.opacity(0.2),
+                                    Color.primaryPurple.opacity(0.15)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+                        .blur(radius: 20)
+                    
+                    // Main icon container
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.primaryBlue.opacity(0.2),
+                                        Color.primaryPurple.opacity(0.15)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 100, height: 100)
+                        
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 50, weight: .medium))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue, Color.primaryPurple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
                 }
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 30)
-                        .fill(Color.primaryBlue)
-                        .shadow(color: .primaryBlue.opacity(0.3), radius: 8, x: 0, y: 4)
-                )
+                .padding(.bottom, 8)
+                
+                // Text Content
+                VStack(spacing: 16) {
+                    Text("Start Your Journey")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("Build better habits, one day at a time.\nAdd your first habit to get started.")
+                        .font(.system(size: 17, weight: .regular, design: .rounded))
+                        .foregroundColor(.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(6)
+                        .padding(.horizontal, 8)
+                }
+                
+                // Modern Gradient Button
+                Button(action: {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        showingAddHabit = true
+                    }
+                }) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white.opacity(0.2))
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        
+                        Text("Add Your First Habit")
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 18)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue, Color.primaryPurple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .shadow(
+                                color: Color.primaryBlue.opacity(0.4),
+                                radius: 20,
+                                x: 0,
+                                y: 10
+                            )
+                    )
+                }
+                .buttonStyle(ScaleButtonStyle())
             }
-            .buttonStyle(PlainButtonStyle())
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 60)
+            
+            Spacer()
         }
-        .padding(40)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 8)
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     // MARK: - Quick Stats View
@@ -921,7 +1011,7 @@ struct HabitCardView: View {
         .onAppear {
             updateProgressAnimation()
         }
-        .onChange(of: currentStatus) {
+        .onChange(of: currentStatus) { oldValue, newValue in
             updateProgressAnimation()
         }
     }
@@ -1230,6 +1320,8 @@ struct HabitGridView: View {
     @State private var isGlowing = false
     @State private var animatedProgress: Double = 0
     @State private var animatedStreak: Int = 0
+    @State private var cachedDayTiles: [DayTile] = []
+    @State private var lastEntriesHash: Int = 0
     
     // Dynamic grid sizing based on habit duration
     private var gridLayout: GridLayout {
@@ -1406,6 +1498,7 @@ struct HabitGridView: View {
                                         } : nil
                                     )
                                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                                    .id(dayTiles[index].id)
                                 } else {
                                     // Empty space for incomplete rows
                                     Rectangle()
@@ -1472,35 +1565,61 @@ struct HabitGridView: View {
             }
         }
         .onAppear {
+            // Initialize cache on appear (safe to modify state here)
+            updateCachedData()
             // Animate progress and streak on appear
             let progress = habitManager.getCompletionProgress(for: habit) * 100
-            let streak = currentStreak
+            let streak = calculateCachedStreak()
             
             withAnimation(.easeOut(duration: 1.0)) {
                 animatedProgress = progress
                 animatedStreak = streak
             }
         }
-        .onChange(of: currentStreak) { newValue in
-            // Animate streak changes
-            withAnimation(.easeOut(duration: 0.8)) {
-                animatedStreak = newValue
+        .task {
+            // Ensure cache is initialized if onAppear didn't trigger
+            if cachedDayTiles.isEmpty {
+                updateCachedData()
             }
         }
-        .onChange(of: habitManager.entries.count) { _ in
-            // Update progress when entries change (completion toggled)
-            let progress = habitManager.getCompletionProgress(for: habit) * 100
-            if abs(animatedProgress - progress) > 0.1 {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    animatedProgress = progress
+        .onChange(of: habitManager.entries.count) { oldValue, newValue in
+            // Only update if entries for this specific habit changed
+            let currentHash = hashEntries(for: habit.id)
+            if currentHash != lastEntriesHash {
+                // Update hash immediately (safe - just an Int value)
+                lastEntriesHash = currentHash
+                
+                // Defer state updates to avoid modifying during view update
+                Task { @MainActor in
+                    updateCachedData()
+                    
+                    // Update progress when entries change (completion toggled)
+                    let progress = habitManager.getCompletionProgress(for: habit) * 100
+                    if abs(animatedProgress - progress) > 0.1 {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            animatedProgress = progress
+                        }
+                    }
+                    
+                    // Update streak
+                    let streak = calculateCachedStreak()
+                    if streak != animatedStreak {
+                        withAnimation(.easeOut(duration: 0.8)) {
+                            animatedStreak = streak
+                        }
+                    }
                 }
             }
         }
-        .onChange(of: todayStatus) { _ in
-            // Immediately update progress when today's status changes (faster response)
-            let progress = habitManager.getCompletionProgress(for: habit) * 100
-            if abs(animatedProgress - progress) > 0.1 {
-                animatedProgress = progress // Update immediately without animation delay
+        .onChange(of: todayStatus) { oldValue, newValue in
+            // Defer state updates to avoid modifying during view update
+            Task { @MainActor in
+                // Immediately update progress when today's status changes (faster response)
+                let progress = habitManager.getCompletionProgress(for: habit) * 100
+                if abs(animatedProgress - progress) > 0.1 {
+                    animatedProgress = progress // Update immediately without animation delay
+                }
+                updateCachedData()
             }
         }
         .sheet(isPresented: $showingCompletionDetail) {
@@ -1606,7 +1725,13 @@ struct HabitGridView: View {
     }
     
     private var dayTiles: [DayTile] {
-        // Calculate tiles without modifying state
+        // Return cached tiles - never modify state here
+        // If empty, return empty array (will be populated by onAppear)
+        return cachedDayTiles
+    }
+    
+    private func updateCachedData() {
+        // Calculate tiles and cache them
         let calendar = Calendar.current
         let today = Date()
         var tiles: [DayTile] = []
@@ -1627,26 +1752,68 @@ struct HabitGridView: View {
         // For fixed duration habits, ensure we show exactly the total days
         let daysToGenerate = habit.duration.isUnlimited ? min(totalDays, daysToShow) : min(totalDays + 1, daysToShow)
         
+        // Pre-compute all entries for this habit to avoid repeated lookups
+        let habitEntries = habitManager.entries.filter { $0.habitId == habit.id }
+        
         for i in 0..<daysToGenerate {
             let date = calendar.date(byAdding: .day, value: i, to: startDate) ?? startDate
-            let entry = habitManager.getEntry(for: habit, on: date)
+            let entry = habitEntries.first { Calendar.current.isDate($0.date, inSameDayAs: date) }
             let isToday = calendar.isDateInToday(date)
+            
+            // Pre-calculate completion progress for multi-completion habits
+            var completionProgress: (completed: Int, target: Int, percentage: Double)? = nil
+            if habit.targetCompletionsPerDay > 1 {
+                if let entry = entry {
+                    let completedCount = entry.completions.filter { $0.status == .completed }.count
+                    let percentage = habit.targetCompletionsPerDay > 0 ? Double(completedCount) / Double(habit.targetCompletionsPerDay) : 0.0
+                    completionProgress = (completedCount, habit.targetCompletionsPerDay, min(percentage, 1.0))
+                } else {
+                    completionProgress = (0, habit.targetCompletionsPerDay, 0.0)
+                }
+            }
             
             tiles.append(DayTile(
                 date: date,
                 status: entry?.status,
                 isToday: isToday,
-                dayNumber: calendar.component(.day, from: date)
+                dayNumber: calendar.component(.day, from: date),
+                completionProgress: completionProgress
             ))
         }
         
-        return tiles
+        cachedDayTiles = tiles
+        lastEntriesHash = hashEntries(for: habit.id)
     }
     
-    private var currentStreak: Int {
-        habitManager.getStatistics(for: habit, in: DateInterval(start: Date().addingTimeInterval(-365*24*60*60), end: Date())).currentStreak
+    private func hashEntries(for habitId: UUID) -> Int {
+        // Create a simple hash of entries for this habit to detect changes
+        let habitEntries = habitManager.entries.filter { $0.habitId == habitId }
+        return habitEntries.count ^ habitEntries.map { $0.id.hashValue }.reduce(0, ^)
     }
     
+    private func calculateCachedStreak() -> Int {
+        // Cached streak calculation - only call expensive operation when needed
+        let calendar = Calendar.current
+        var currentDate = Date()
+        var streak = 0
+        
+        while true {
+            // Check if the day is complete based on target completions
+            if habitManager.isDayComplete(for: habit, on: currentDate) {
+                streak += 1
+            } else if let entry = habitManager.getEntry(for: habit, on: currentDate), entry.totalCompletions > 0 {
+                // If there are entries but day isn't complete, streak is broken
+                break
+            } else {
+                // No entries for this day, streak is broken
+                break
+            }
+            
+            currentDate = calendar.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate
+        }
+        
+        return streak
+    }
     
     private func updateStatus(for date: Date) {
         // For multi-completion habits, add a completion instead of cycling status
@@ -1815,7 +1982,8 @@ struct DayTileView: View {
     }
     
     private var multiCompletionContent: some View {
-        let progress = habitManager.getCompletionProgress(for: habit, on: dayTile.date)
+        // Use pre-calculated progress from DayTile to avoid recalculation
+        let progress = dayTile.completionProgress ?? (completed: 0, target: habit.targetCompletionsPerDay, percentage: 0.0)
         
         return VStack(spacing: 2) {
             Text("\(dayTile.dayNumber)")
@@ -1867,9 +2035,9 @@ struct DayTileView: View {
             return habitColor.opacity(0.4)
         }
         
-        // For multi-completion habits, use completion progress
+        // For multi-completion habits, use pre-calculated completion progress
         if habit.targetCompletionsPerDay > 1 {
-            let progress = habitManager.getCompletionProgress(for: habit, on: dayTile.date)
+            let progress = dayTile.completionProgress ?? (completed: 0, target: habit.targetCompletionsPerDay, percentage: 0.0)
             
             if progress.completed == progress.target && progress.target > 0 {
                 return habitColor // Fully completed
@@ -1912,12 +2080,23 @@ struct DayTileView: View {
 }
 
 // MARK: - Day Tile Model
-struct DayTile: Identifiable {
+struct DayTile: Identifiable, Equatable {
     let id = UUID()
     let date: Date
     let status: HabitStatus?
     let isToday: Bool
     let dayNumber: Int
+    let completionProgress: (completed: Int, target: Int, percentage: Double)? // Pre-calculated for performance
+    
+    static func == (lhs: DayTile, rhs: DayTile) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.date == rhs.date &&
+        lhs.status == rhs.status &&
+        lhs.isToday == rhs.isToday &&
+        lhs.dayNumber == rhs.dayNumber &&
+        lhs.completionProgress?.completed == rhs.completionProgress?.completed &&
+        lhs.completionProgress?.target == rhs.completionProgress?.target
+    }
 }
 
 // MARK: - Completion Detail View
@@ -2059,6 +2238,18 @@ struct CompletionDetailView: View {
     
     private var isToday: Bool {
         Calendar.current.isDateInToday(date)
+    }
+}
+
+// MARK: - Badge Management Extension for ContentView
+extension ContentView {
+    func clearNotificationBadge() {
+        // Clear the app badge when app becomes active
+        UNUserNotificationCenter.current().setBadgeCount(0) { error in
+            if let error = error {
+                print("Error clearing badge: \(error.localizedDescription)")
+            }
+        }
     }
 }
 

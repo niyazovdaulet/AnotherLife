@@ -10,7 +10,10 @@ import SwiftUI
 struct OnboardingFlowView: View {
     @EnvironmentObject var habitManager: HabitManager
     @StateObject private var viewModel = OnboardingViewModel()
+    @StateObject private var authManager = AuthManager()
     @State private var showingPermissionAlert = false
+    @State private var showingAuth = false
+    @AppStorage("isFirstTimeRun") private var isFirstTimeRun = true
     
     var body: some View {
         ZStack {
@@ -55,44 +58,54 @@ struct OnboardingFlowView: View {
                     )
                     .tag(2)
                     
-                    // Step 3: Reminders
+                    // Step 3: Reminders & Finish
                     RemindersStep(
                         wantsReminders: $viewModel.wantsReminders,
                         time: $viewModel.reminderTime,
-                        next: {
+                        finish: {
                             if viewModel.wantsReminders {
                                 viewModel.requestNotificationPermissionIfNeeded()
                             }
-                            viewModel.nextStep()
+                            
+                            // Check if first time before completing
+                            let wasFirstTime = isFirstTimeRun
+                            viewModel.complete(habitManager: habitManager)
+                            
+                            // If first time, navigate to Auth after a brief delay
+                            if wasFirstTime {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    showingAuth = true
+                                }
+                            }
                         },
                         back: { viewModel.previousStep() }
                     )
                     .tag(3)
-                    
-                    // Step 4: Theme & Finish
-                    ThemeFinishStep(
-                        theme: $viewModel.theme,
-                        finish: {
-                            viewModel.complete(habitManager: habitManager)
-                        },
-                        back: { viewModel.previousStep() }
-                    )
-                    .tag(4)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut(duration: 0.3), value: viewModel.step)
             }
         }
-        .preferredColorScheme(viewModel.theme == .system ? nil : (viewModel.theme == .light ? .light : .dark))
+        .preferredColorScheme(.dark)
         .onAppear {
             // Set up haptic feedback
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.prepare()
         }
-        .onChange(of: viewModel.step) {
+        .onChange(of: viewModel.step) { oldValue, newValue in
             // Haptic feedback on step change
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.impactOccurred()
+        }
+        .fullScreenCover(isPresented: $showingAuth) {
+            AuthView()
+                .environmentObject(authManager)
+        }
+        .onChange(of: authManager.isAuthenticated) { oldValue, newValue in
+            // Close auth view when authenticated
+            if newValue {
+                showingAuth = false
+            }
         }
     }
 }

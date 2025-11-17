@@ -6,6 +6,33 @@ struct ProfileView: View {
     @State private var showingSettings = false
     @State private var showingEditProfile = false
     @State private var showingWeeklyReport = false
+    @State private var showingAddHabit = false
+    
+    // MARK: - Level Calculation Helpers
+    private func calculateLevel(from points: Int) -> Int {
+        // Level 1: 0-99, Level 2: 100-199, etc.
+        return (points / 100) + 1
+    }
+    
+    private func pointsForLevel(_ level: Int) -> Int {
+        // Level 1 starts at 0, Level 2 starts at 100, etc.
+        return (level - 1) * 100
+    }
+    
+    private func pointsForNextLevel(_ level: Int) -> Int {
+        // Points needed for next level
+        return level * 100
+    }
+    
+    private func progressToNextLevel(points: Int, level: Int) -> Double {
+        let currentLevelStart = pointsForLevel(level)
+        let nextLevelStart = pointsForNextLevel(level)
+        let pointsInCurrentLevel = points - currentLevelStart
+        let pointsNeededForNext = nextLevelStart - currentLevelStart
+        
+        guard pointsNeededForNext > 0 else { return 1.0 }
+        return min(Double(pointsInCurrentLevel) / Double(pointsNeededForNext), 1.0)
+    }
     
     var body: some View {
         NavigationView {
@@ -31,13 +58,10 @@ struct ProfileView: View {
                         profileHeaderView
                         
                         // Stats Overview
-//                        statsOverviewView
+                        statsOverviewView
                         
                         // Weekly Report & Analytics
                         weeklyReportSection
-                        
-                        // Quick Actions
-                        quickActionsView
                         
                         // Account Information
                         accountInfoView
@@ -69,6 +93,9 @@ struct ProfileView: View {
         .sheet(isPresented: $showingWeeklyReport) {
             WeeklyReportView()
                 .environmentObject(habitManager)
+        }
+        .sheet(isPresented: $showingAddHabit) {
+            AddHabitView()
         }
     }
     
@@ -121,19 +148,93 @@ struct ProfileView: View {
             }
             
             // User Info
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 Text(authManager.currentUser?.displayName ?? "Welcome Back!")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(.textPrimary)
                 
                 Text("@\(authManager.currentUser?.username ?? "user")")
-                    .font(.subheadline)
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.primaryBlue)
                 
-                Text("Level \(authManager.currentUser?.level ?? 1) • \(authManager.currentUser?.totalPoints ?? 0) points")
-                    .font(.caption)
-                    .foregroundColor(.textSecondary)
+                // Level and Points with Progress Bar
+                VStack(spacing: 8) {
+                    let userPoints = authManager.currentUser?.totalPoints ?? 0
+                    let userLevel = calculateLevel(from: userPoints)
+                    let progress = progressToNextLevel(points: userPoints, level: userLevel)
+                    let pointsToNext = pointsForNextLevel(userLevel) - userPoints
+                    
+                    HStack(spacing: 12) {
+                        // Level Badge
+                        HStack(spacing: 6) {
+                            Image(systemName: "crown.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.primaryOrange)
+                            
+                            Text("Level \(userLevel)")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundColor(.textPrimary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.primaryOrange.opacity(0.2),
+                                            Color.primaryYellow.opacity(0.15)
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        )
+                        
+                        // Points Display
+                        HStack(spacing: 6) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.primaryOrange)
+                            
+                            Text("\(userPoints)")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundColor(.textPrimary)
+                            
+                            Text("points")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.textSecondary)
+                        }
+                    }
+                    
+                    // Level Progress Bar
+                    VStack(spacing: 4) {
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.white.opacity(0.1))
+                                    .frame(height: 8)
+                                
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.primaryOrange, Color.primaryYellow],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: geometry.size.width * progress, height: 8)
+                                    .animation(.easeInOut(duration: 0.5), value: progress)
+                            }
+                        }
+                        .frame(height: 8)
+                        
+                        Text("\(pointsToNext) points until Level \(userLevel + 1)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+                .padding(.horizontal, 16)
             }
             
             // Enhanced Edit Profile Button
@@ -210,56 +311,62 @@ struct ProfileView: View {
         )
     }
     
-//    // MARK: - Stats Overview View
-//    private var statsOverviewView: some View {
-//        VStack(alignment: .leading, spacing: 20) {
-//            HStack {
-//                Text("Your Progress")
-//                    .font(.title2)
-//                    .fontWeight(.bold)
-//                    .foregroundColor(.textPrimary)
-//                
-//                Spacer()
-//            }
-//            
-//            LazyVGrid(columns: [
-//                GridItem(.flexible()),
-//                GridItem(.flexible())
-//            ], spacing: 16) {
-//                StatCardView(
-//                    title: "Total Habits",
-//                    value: "\(habitManager.habits.count)",
-//                    icon: "star.fill",
-//                    color: .primaryBlue
-//                )
-//                
-//                StatCardView(
-//                    title: "Current Streak",
-//                    value: "\(longestCurrentStreak)",
-//                    icon: "flame.fill",
-//                    color: .orange
-//                )
-//                
-//                StatCardView(
-//                    title: "This Week",
-//                    value: "\(String(format: "%.0f", weeklyCompletionRate))%",
-//                    icon: "chart.bar.fill",
-//                    color: .primaryGreen
-//                )
-//                
-//                StatCardView(
-//                    title: "Total Days",
-//                    value: "\(totalDaysTracked)",
-//                    icon: "calendar",
-//                    color: .purple
-//                )
-//            }
-//        }
-//    }
+    // MARK: - Stats Overview View
+    private var statsOverviewView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Your Progress")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.textPrimary)
+                
+                Spacer()
+            }
+            
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 12),
+                GridItem(.flexible(), spacing: 12)
+            ], spacing: 12) {
+                ProfileStatCard(
+                    title: "Total Habits",
+                    value: "\(habitManager.habits.count)",
+                    icon: "star.fill",
+                    color: .primaryBlue
+                )
+                
+                ProfileStatCard(
+                    title: "Current Streak",
+                    value: "\(longestCurrentStreak)",
+                    icon: "flame.fill",
+                    color: .orange
+                )
+                
+                ProfileStatCard(
+                    title: "This Week",
+                    value: "\(String(format: "%.0f", weeklyCompletionRate))%",
+                    icon: "chart.bar.fill",
+                    color: .primaryGreen
+                )
+                
+                ProfileStatCard(
+                    title: "Total Days",
+                    value: "\(totalDaysTracked)",
+                    icon: "calendar",
+                    color: .primaryPurple
+                )
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+        )
+    }
     
     // MARK: - Weekly Report Section
     private var weeklyReportSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Habits Performance")
                     .font(.title2)
@@ -299,7 +406,13 @@ struct ProfileView: View {
                 .background(
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.primaryGradient)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue, Color.primaryPurple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                             .shadow(color: .primaryBlue.opacity(0.4), radius: 16, x: 0, y: 8)
                         
                         RoundedRectangle(cornerRadius: 16)
@@ -322,6 +435,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.primaryGreen)
                         Text("This Week's Performance")
                             .font(.subheadline)
@@ -336,76 +450,112 @@ struct ProfileView: View {
                             .foregroundColor(.primaryGreen)
                     }
                     
-                    ProgressView(value: weeklyCompletionRate / 100)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .primaryGreen))
-                        .scaleEffect(x: 1, y: 2, anchor: .center)
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white.opacity(0.1))
+                                .frame(height: 10)
+                            
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.primaryGreen, Color.primaryGreen.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geometry.size.width * (weeklyCompletionRate / 100), height: 10)
+                                .animation(.easeInOut(duration: 0.5), value: weeklyCompletionRate)
+                        }
+                    }
+                    .frame(height: 10)
                 }
-                .padding(16)
+                .padding(18)
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 14)
                         .fill(Color.cardBackground)
-                        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+                        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
                 )
                 
                 // Streak Info
                 HStack(spacing: 12) {
                     // Current Streak
-                    HStack(spacing: 8) {
-                        Image(systemName: "flame.fill")
-                            .foregroundColor(.orange)
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.orange.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.orange)
+                        }
                         
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("\(longestCurrentStreak)")
-                                .font(.title3)
-                                .fontWeight(.bold)
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
                                 .foregroundColor(.textPrimary)
                             
                             Text("Current Streak")
-                                .font(.caption)
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.textSecondary)
                         }
                         
                         Spacer()
                     }
-                    .padding(12)
+                    .padding(14)
+                    .frame(maxWidth: .infinity)
                     .background(
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: 14)
                             .fill(Color.cardBackground)
-                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                            .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
                     )
                     
                     // Total Completed
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.primaryBlue)
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.primaryBlue.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.primaryBlue)
+                        }
                         
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("\(totalCompletedThisWeek)")
-                                .font(.title3)
-                                .fontWeight(.bold)
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
                                 .foregroundColor(.textPrimary)
                             
                             Text("This Week")
-                                .font(.caption)
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.textSecondary)
                         }
                         
                         Spacer()
                     }
-                    .padding(12)
+                    .padding(14)
+                    .frame(maxWidth: .infinity)
                     .background(
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: 14)
                             .fill(Color.cardBackground)
-                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                            .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
                     )
                 }
             }
         }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+        )
     }
     
     // MARK: - Quick Actions View
     private var quickActionsView: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Quick Actions")
                     .font(.title2)
@@ -421,15 +571,15 @@ struct ProfileView: View {
                     title: "Add New Habit",
                     subtitle: "Start tracking a new habit",
                     color: .primaryBlue,
-                    action: { /* Add habit action */ }
+                    action: { showingAddHabit = true }
                 )
                 
                 QuickActionRow(
                     icon: "chart.line.uptrend.xyaxis",
-                    title: "View Analytics",
-                    subtitle: "See your progress over time",
+                    title: "Weekly Report",
+                    subtitle: "Detailed insights and analytics",
                     color: .primaryGreen,
-                    action: { /* Analytics action */ }
+                    action: { showingWeeklyReport = true }
                 )
                 
                 QuickActionRow(
@@ -437,11 +587,16 @@ struct ProfileView: View {
                     title: "Challenges",
                     subtitle: "Join or create challenges",
                     color: .orange,
-                    action: { /* Challenges action */ }
+                    action: { }
                 )
-                
             }
         }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+        )
     }
     
     // MARK: - Account Information View
@@ -456,36 +611,34 @@ struct ProfileView: View {
                 Spacer()
             }
             
-            VStack(spacing: 12) {
-                AccountInfoRow(
-                    icon: "person.fill",
-                    title: "Username",
-                    value: "@\(authManager.currentUser?.username ?? "user")",
-                    action: { showingEditProfile = true }
-                )
-                
-                AccountInfoRow(
-                    icon: "envelope.fill",
-                    title: "Email",
-                    value: authManager.currentUser?.email ?? "user@example.com",
-                    action: { showingEditProfile = true }
-                )
-                
-                AccountInfoRow(
-                    icon: "lock.fill",
-                    title: "Password",
-                    value: "••••••••",
-                    action: { /* Change password action - empty for now */ }
-                )
-                
-                Divider()
-                    .padding(.vertical, 8)
-                
-                Button(action: {
-                    Task {
-                        await authManager.signOut()
-                    }
-                }) {
+            Button(action: {
+                // Haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+                showingEditProfile = true
+            }) {
+                VStack(spacing: 12) {
+                    AccountInfoRowDisplay(
+                        icon: "person.fill",
+                        title: "Username",
+                        value: "@\(authManager.currentUser?.username ?? "user")"
+                    )
+                    
+                    AccountInfoRowDisplay(
+                        icon: "envelope.fill",
+                        title: "Email",
+                        value: authManager.currentUser?.email ?? "user@example.com"
+                    )
+                    
+                    AccountInfoRowDisplay(
+                        icon: "lock.fill",
+                        title: "Password",
+                        value: "••••••••"
+                    )
+                    
+                    Divider()
+                        .padding(.vertical, 8)
+                    
                     HStack(spacing: 12) {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
                             .font(.title3)
@@ -500,9 +653,15 @@ struct ProfileView: View {
                         Spacer()
                     }
                     .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        Task {
+                            await authManager.signOut()
+                        }
+                    }
                 }
-                .buttonStyle(PlainButtonStyle())
             }
+            .buttonStyle(PlainButtonStyle())
         }
         .padding(20)
         .background(
@@ -528,7 +687,7 @@ struct ProfileView: View {
                 InfoRow(
                     icon: "info.circle",
                     title: "App Version",
-                    value: "1.3.1"
+                    value: "1.3.3"
                 )
                 
                 InfoRow(
@@ -628,40 +787,54 @@ struct QuickActionRow: View {
     let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            // Haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+            action()
+        }) {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(color.opacity(0.1))
-                        .frame(width: 50, height: 50)
+                        .fill(
+                            LinearGradient(
+                                colors: [color.opacity(0.2), color.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 52, height: 52)
                     
                     Image(systemName: icon)
-                        .font(.title2)
+                        .font(.system(size: 22, weight: .semibold))
                         .foregroundColor(color)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.textPrimary)
                     
                     Text(subtitle)
-                        .font(.subheadline)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.textSecondary)
                 }
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.subheadline)
-                    .foregroundColor(.textSecondary)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.textSecondary.opacity(0.6))
             }
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.cardBackground)
-                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.cardBackground.opacity(0.6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(color.opacity(0.15), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -695,41 +868,33 @@ struct InfoRow: View {
     }
 }
 
-// MARK: - Account Info Row
-struct AccountInfoRow: View {
+// MARK: - Account Info Row Display (without arrow)
+struct AccountInfoRowDisplay: View {
     let icon: String
     let title: String
     let value: String
-    let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundColor(.primaryBlue)
-                    .frame(width: 24)
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(.primaryBlue)
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.textPrimary)
                 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.textPrimary)
-                    
-                    Text(value)
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
+                Text(value)
                     .font(.caption)
                     .foregroundColor(.textSecondary)
             }
-            .padding(.vertical, 4)
+            
+            Spacer()
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(.vertical, 4)
     }
 }
 
@@ -740,14 +905,20 @@ struct EditProfileView: View {
     @State private var displayName = ""
     @State private var username = ""
     @State private var email = ""
-    @State private var selectedTheme: AppTheme = .system
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var showingChangePassword = false
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var confirmPassword = ""
+    @State private var isChangingPassword = false
+    @State private var passwordChangeError: String?
+    @State private var showingPasswordChangeSuccess = false
     
     var body: some View {
         NavigationView {
             Form {
-                Section("Profile Information") {
+                Section("PROFILE INFORMATION") {
                     HStack {
                         Text("Display Name")
                         Spacer()
@@ -770,13 +941,56 @@ struct EditProfileView: View {
                     }
                 }
                 
-                Section("Preferences") {
-                    Picker("Theme", selection: $selectedTheme) {
-                        Text("System").tag(AppTheme.system)
-                        Text("Light").tag(AppTheme.light)
-                        Text("Dark").tag(AppTheme.dark)
+                // Change Password Button
+                Section {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showingChangePassword.toggle()
+                        }
+                    }) {
+                        HStack {
+                            Text("Change Password")
+                                .foregroundColor(.primaryBlue)
+                            Spacer()
+                            Image(systemName: showingChangePassword ? "chevron.up" : "chevron.down")
+                                .font(.caption)
+                                .foregroundColor(.primaryBlue)
+                        }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
+                }
+                
+                // Change Password Section
+                if showingChangePassword {
+                    Section("CHANGE PASSWORD") {
+                        SecureField("Current Password", text: $currentPassword)
+                        
+                        SecureField("New Password", text: $newPassword)
+                        
+                        SecureField("Confirm New Password", text: $confirmPassword)
+                        
+                        if let passwordChangeError = passwordChangeError {
+                            Text(passwordChangeError)
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+                        
+                        Button(action: {
+                            changePassword()
+                        }) {
+                            HStack {
+                                Spacer()
+                                if isChangingPassword {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Text("Update Password")
+                                        .fontWeight(.semibold)
+                                }
+                                Spacer()
+                            }
+                        }
+                        .disabled(isChangingPassword || currentPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty)
+                    }
                 }
                 
                 if let errorMessage = errorMessage {
@@ -805,6 +1019,11 @@ struct EditProfileView: View {
             }
             .onAppear {
                 loadUserData()
+            }
+            .alert("Password Changed", isPresented: $showingPasswordChangeSuccess) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Your password has been successfully changed.")
             }
         }
     }
@@ -838,6 +1057,93 @@ struct EditProfileView: View {
                 }
             }
         }
+    }
+    
+    private func changePassword() {
+        guard !newPassword.isEmpty else {
+            passwordChangeError = "Please enter a new password"
+            return
+        }
+        
+        guard newPassword.count >= 6 else {
+            passwordChangeError = "Password must be at least 6 characters"
+            return
+        }
+        
+        guard newPassword == confirmPassword else {
+            passwordChangeError = "New passwords do not match"
+            return
+        }
+        
+        passwordChangeError = nil
+        isChangingPassword = true
+        
+        Task {
+            await authManager.changePassword(currentPassword: currentPassword, newPassword: newPassword)
+            
+            await MainActor.run {
+                isChangingPassword = false
+                if authManager.errorMessage == nil {
+                    // Success - clear fields and hide section
+                    currentPassword = ""
+                    newPassword = ""
+                    confirmPassword = ""
+                    withAnimation {
+                        showingChangePassword = false
+                    }
+                    
+                    // Show success message
+                    passwordChangeError = nil
+                    showingPasswordChangeSuccess = true
+                } else {
+                    passwordChangeError = authManager.errorMessage
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Profile Stat Card
+struct ProfileStatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.15))
+                    .frame(width: 48, height: 48)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(color)
+            }
+            
+            VStack(spacing: 4) {
+                Text(value)
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundColor(.textPrimary)
+                
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.cardBackground.opacity(0.5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(color.opacity(0.2), lineWidth: 1)
+                )
+        )
     }
 }
 

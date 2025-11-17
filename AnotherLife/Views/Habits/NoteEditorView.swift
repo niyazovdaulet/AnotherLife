@@ -69,7 +69,7 @@ struct NoteEditorView: View {
         .onAppear {
             loadNoteData()
         }
-        .onChange(of: note) {
+        .onChange(of: note) { oldValue, newValue in
             loadNoteData()
         }
         .onTapGesture {
@@ -432,7 +432,7 @@ struct DynamicTextEditor: View {
                             .onAppear {
                                 calculateHeight(from: geometry)
                             }
-                            .onChange(of: text) {
+                            .onChange(of: text) { oldValue, newValue in
                                 calculateHeight(from: geometry)
                             }
                     }
@@ -444,7 +444,7 @@ struct DynamicTextEditor: View {
                 .frame(height: safeTextHeight)
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
-                .onChange(of: text) { newValue in
+                .onChange(of: text) { oldValue, newValue in
                     // Cancel previous work item
                     debounceWorkItem?.cancel()
                     

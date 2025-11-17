@@ -167,11 +167,37 @@ struct FocusAreasStep: View {
                 
                 Spacer()
                 
-                Button("Continue") {
+                Button(action: {
                     next()
+                }) {
+                    HStack(spacing: 10) {
+                        Text("Continue")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.primaryGradient)
+                                .shadow(color: .primaryBlue.opacity(0.4), radius: 12, x: 0, y: 6)
+                            
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        }
+                    )
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PlainButtonStyle())
                 .disabled(selected.isEmpty)
+                .opacity(selected.isEmpty ? 0.6 : 1.0)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
@@ -271,11 +297,37 @@ struct TemplatesStep: View {
                 
                 Spacer()
                 
-                Button("Continue") {
+                Button(action: {
                     next()
+                }) {
+                    HStack(spacing: 10) {
+                        Text("Continue")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.primaryGradient)
+                                .shadow(color: .primaryBlue.opacity(0.4), radius: 12, x: 0, y: 6)
+                            
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        }
+                    )
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PlainButtonStyle())
                 .disabled(selected.isEmpty)
+                .opacity(selected.isEmpty ? 0.6 : 1.0)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
@@ -368,11 +420,11 @@ struct HabitTemplateRow: View {
     }
 }
 
-// MARK: - Reminders Step
+// MARK: - Reminders Step (Final Step)
 struct RemindersStep: View {
     @Binding var wantsReminders: Bool
     @Binding var time: Date
-    let next: () -> Void
+    let finish: () -> Void
     let back: () -> Void
     
     var body: some View {
@@ -448,75 +500,6 @@ struct RemindersStep: View {
             
             Spacer()
             
-            // Navigation Buttons
-            HStack {
-                Button("Back") {
-                    back()
-                }
-                .foregroundColor(.textSecondary)
-                
-                Spacer()
-                
-                Button("Continue") {
-                    next()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 40)
-        }
-        .background(Color.background.ignoresSafeArea())
-        .animation(.easeInOut(duration: 0.3), value: wantsReminders)
-    }
-}
-
-// MARK: - Theme & Finish Step
-struct ThemeFinishStep: View {
-    @Binding var theme: AppTheme
-    let finish: () -> Void
-    let back: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 32) {
-            VStack(spacing: 16) {
-                Text("Make it yours")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.textPrimary)
-                
-                Text("You're set. Let's start Day One.")
-                    .font(.subheadline)
-                    .foregroundColor(.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.top, 24)
-            .padding(.horizontal, 24)
-            
-            VStack(spacing: 24) {
-                // Theme Selection
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Appearance")
-                        .font(.headline)
-                        .foregroundColor(.textPrimary)
-                    
-                    Picker("Theme", selection: $theme) {
-                        ForEach(AppTheme.allCases, id: \.self) { theme in
-                            Text(theme.displayName).tag(theme)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.cardBackground)
-                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-                )
-            }
-            .padding(.horizontal, 24)
-            
-            Spacer()
-            
             // Finish Button
             VStack(spacing: 16) {
                 Button(action: finish) {
@@ -558,5 +541,7 @@ struct ThemeFinishStep: View {
             .padding(.bottom, 40)
         }
         .background(Color.background.ignoresSafeArea())
+        .animation(.easeInOut(duration: 0.3), value: wantsReminders)
     }
 }
+

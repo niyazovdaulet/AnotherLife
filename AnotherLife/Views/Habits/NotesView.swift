@@ -6,6 +6,7 @@ struct NotesTabView: View {
     @State private var selectedSegment: NotesSegment = .byHabit
     @State private var showingNewNote = false
     @State private var editingNote: HabitNote?
+    @State private var swipedNoteId: UUID? = nil
     
     enum NotesSegment: String, CaseIterable {
         case allNotes = "All Notes"
@@ -206,46 +207,18 @@ struct NotesTabView: View {
             }
             .padding(.horizontal, 20)
             
-            // Quick action section
+            // Today's date section (without Quick Note button)
             if !filteredNotes.isEmpty {
-                HStack(spacing: 12) {
+                HStack {
                     // Today's date label
                     Text(todayDateString)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.textSecondary)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.textPrimary)
                     
                     Spacer()
-                    
-                    // Quick add button
-                    Button(action: {
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                        impactFeedback.impactOccurred()
-                        showingNewNote = true
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 14, weight: .semibold))
-                            
-                            Text("Quick Note")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(Color.primaryGradient)
-                                .shadow(
-                                    color: .primaryBlue.opacity(0.3),
-                                    radius: 8,
-                                    x: 0,
-                                    y: 4
-                                )
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.horizontal, 20)
+                .padding(.top, 8)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -280,12 +253,37 @@ struct NotesTabView: View {
     private var allNotesView: some View {
         LazyVStack(spacing: 12) {
             ForEach(filteredNotes) { note in
-                NoteCardView(note: note, habit: getHabit(for: note), onDelete: {
-                    habitManager.deleteNote(note)
-                })
-                    .onTapGesture {
-                        editingNote = note
+                NoteCardView(
+                    note: note,
+                    habit: getHabit(for: note),
+                    isSwipedOpen: swipedNoteId == note.id,
+                    onDelete: {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            habitManager.deleteNote(note)
+                            swipedNoteId = nil
+                        }
+                    },
+                    onSwipeChanged: { isOpen in
+                        swipedNoteId = isOpen ? note.id : nil
+                    },
+                    onCardTapped: {
+                        // Handle card tap
+                        if swipedNoteId == note.id {
+                            // Close swipe
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                swipedNoteId = nil
+                            }
+                        } else if swipedNoteId == nil {
+                            // Edit note
+                            editingNote = note
+                        } else {
+                            // Close other open swipe first
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                swipedNoteId = nil
+                            }
+                        }
                     }
+                )
             }
         }
     }
@@ -419,16 +417,40 @@ struct NotesTabView: View {
                     if let notes = groupedByHabit[habitId] {
                         LazyVStack(spacing: 12) {
                             ForEach(notes) { note in
-                                NoteCardView(note: note, habit: getHabit(for: note), isCompact: true, onDelete: {
-                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                        habitManager.deleteNote(note)
+                                NoteCardView(
+                                    note: note,
+                                    habit: getHabit(for: note),
+                                    isCompact: true,
+                                    isSwipedOpen: swipedNoteId == note.id,
+                                    onDelete: {
+                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                            habitManager.deleteNote(note)
+                                            swipedNoteId = nil
+                                        }
+                                    },
+                                    onSwipeChanged: { isOpen in
+                                        swipedNoteId = isOpen ? note.id : nil
+                                    },
+                                    onCardTapped: {
+                                        // Handle card tap
+                                        if swipedNoteId == note.id {
+                                            // Close swipe
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                swipedNoteId = nil
+                                            }
+                                        } else if swipedNoteId == nil {
+                                            // Edit note
+                                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                            impactFeedback.impactOccurred()
+                                            editingNote = note
+                                        } else {
+                                            // Close other open swipe first
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                swipedNoteId = nil
+                                            }
+                                        }
                                     }
-                                })
-                                .onTapGesture {
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
-                                    editingNote = note
-                                }
+                                )
                                 .transition(.asymmetric(
                                     insertion: .opacity.combined(with: .move(edge: .top)),
                                     removal: .opacity.combined(with: .move(edge: .bottom))
@@ -665,11 +687,15 @@ struct NoteCardView: View {
     let note: HabitNote
     let habit: Habit?
     var isCompact: Bool = false
+    var isSwipedOpen: Bool = false
     var onDelete: (() -> Void)? = nil
+    var onSwipeChanged: ((Bool) -> Void)? = nil
+    var onCardTapped: (() -> Void)? = nil
     
     @State private var offset: CGFloat = 0
     @State private var showingDeleteButton = false
     @State private var isPressed = false
+    @State private var isDragging = false // Track if currently dragging to prevent animation conflicts
     
     var body: some View {
         ZStack {
@@ -677,13 +703,14 @@ struct NoteCardView: View {
             if showingDeleteButton {
                 HStack {
                     Spacer()
+                    // Delete button is now just visual - deletion happens via full swipe
                     Button(action: {
-                        // Haptic feedback for delete
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                        impactFeedback.impactOccurred()
-                        
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                            onDelete?()
+                        // Visual feedback only - actual delete happens on full swipe
+                        // User can tap to close the swipe
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            offset = 0
+                            showingDeleteButton = false
+                            onSwipeChanged?(false)
                         }
                     }) {
                         VStack(spacing: 4) {
@@ -715,6 +742,7 @@ struct NoteCardView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     .padding(.trailing, 20)
+                    .zIndex(10) // High z-index to ensure delete button is on top
                 }
             }
             
@@ -757,19 +785,19 @@ struct NoteCardView: View {
                     }
                     
                     Text(formattedDate)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.textSecondary)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.textPrimary)
                     
                     Spacer()
                     
                     // Enhanced last edited indicator
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         Circle()
                             .fill(Color.green.opacity(0.6))
-                            .frame(width: 6, height: 6)
+                            .frame(width: 7, height: 7)
                         
                         Text(lastEditedDateFormatter.string(from: note.updatedAt))
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.textSecondary)
                     }
                 }
@@ -843,30 +871,118 @@ struct NoteCardView: View {
             )
             .scaleEffect(isPressed ? 0.98 : 1.0)
             .offset(x: offset)
+            .zIndex(1) // Card content is below delete button
+            .animation(isDragging ? nil : .default, value: offset) // Disable animation during drag
+            .onChange(of: isSwipedOpen) { oldValue, newValue in
+                // Sync with external state changes (e.g., when another card is swiped)
+                // Only update if we're not currently dragging to avoid animation conflicts
+                guard !isDragging else { return }
+                
+                DispatchQueue.main.async {
+                    if !newValue && showingDeleteButton {
+                        // Close swipe
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            offset = 0
+                            showingDeleteButton = false
+                        }
+                    } else if newValue && !showingDeleteButton {
+                        // Open swipe
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            offset = -60
+                            showingDeleteButton = true
+                        }
+                    }
+                }
+            }
             .gesture(
                 DragGesture()
                     .onChanged { value in
-                        if value.translation.width < 0 {
-                            offset = max(value.translation.width, -80)
-                            showingDeleteButton = offset < -20
+                        // Mark that we're dragging to prevent other animations
+                        isDragging = true
+                        
+                        // Disable all animations during drag to prevent conflicts
+                        var transaction = Transaction(animation: nil)
+                        transaction.disablesAnimations = true
+                        
+                        withTransaction(transaction) {
+                            if value.translation.width < 0 {
+                                // Swiping left to reveal delete
+                                // Allow swiping up to -120 to show delete fully and indicate deletion threshold
+                                offset = max(value.translation.width, -120)
+                                showingDeleteButton = offset < -20
+                            } else if value.translation.width > 0 && showingDeleteButton {
+                                // Swiping right to hide delete
+                                offset = min(value.translation.width - 60, 0)
+                                showingDeleteButton = offset < -20
+                            }
                         }
                     }
-                    .onEnded { _ in
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                            if offset < -40 {
-                                offset = -60
-                                showingDeleteButton = true
-                            } else {
-                                offset = 0
-                                showingDeleteButton = false
+                    .onEnded { value in
+                        // Mark that dragging has ended
+                        isDragging = false
+                        
+                        let swipeDistance = value.translation.width
+                        let deleteThreshold: CGFloat = -100 // Swipe past this to delete
+                        
+                        // Check if swiped far enough to delete
+                        if swipeDistance < deleteThreshold {
+                            // Delete the note
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+                            impactFeedback.impactOccurred()
+                            
+                            // Animate off screen, then delete
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                offset = -200
+                            }
+                            
+                            // Delete after animation
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                onDelete?()
+                            }
+                        } else {
+                            // Determine final state (show/hide delete button or snap back)
+                            let shouldShowDelete = swipeDistance < -40
+                            let shouldHideDelete = swipeDistance > 20 && showingDeleteButton
+                            
+                            // Animate to final state (only after drag ends)
+                            DispatchQueue.main.async {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    if shouldShowDelete {
+                                        // Snap to open position (delete button visible)
+                                        offset = -60
+                                        showingDeleteButton = true
+                                        onSwipeChanged?(true)
+                                    } else if shouldHideDelete {
+                                        // Snap to closed position when swiping right
+                                        offset = 0
+                                        showingDeleteButton = false
+                                        onSwipeChanged?(false)
+                                    } else {
+                                        // Snap back to current state
+                                        if showingDeleteButton {
+                                            offset = -60
+                                        } else {
+                                            offset = 0
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
             )
+            .contentShape(Rectangle())
             .onTapGesture {
-                // Haptic feedback for tap
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
+                if showingDeleteButton {
+                    // Close swipe when tapping card
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        offset = 0
+                        showingDeleteButton = false
+                        onSwipeChanged?(false)
+                    }
+                } else {
+                    // Normal tap - edit note
+                    onCardTapped?()
+                }
             }
             .onLongPressGesture(minimumDuration: 0.1, maximumDistance: 50) { pressing in
                 withAnimation(.easeInOut(duration: 0.1)) {
@@ -876,6 +992,7 @@ struct NoteCardView: View {
                 // Long press action if needed
             }
         }
+        .clipped() // Ensure content doesn't overflow
     }
     
     private var formattedDate: String {

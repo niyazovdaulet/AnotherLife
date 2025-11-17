@@ -178,6 +178,32 @@ class AuthManager: ObservableObject {
         }
     }
     
+    // MARK: - Password Management
+    
+    func changePassword(currentPassword: String, newPassword: String) async {
+        guard let user = auth.currentUser, let email = user.email else {
+            errorMessage = "User not authenticated"
+            return
+        }
+        
+        // Re-authenticate user with current password
+        do {
+            let credential = EmailAuthProvider.credential(withEmail: email, password: currentPassword)
+            try await user.reauthenticate(with: credential)
+        } catch {
+            errorMessage = "Current password is incorrect"
+            return
+        }
+        
+        // Update password
+        do {
+            try await user.updatePassword(to: newPassword)
+            errorMessage = nil
+        } catch {
+            errorMessage = "Failed to change password: \(error.localizedDescription)"
+        }
+    }
+    
     // MARK: - Username Validation
     
     func checkUsernameAvailability(_ username: String) async -> Bool {

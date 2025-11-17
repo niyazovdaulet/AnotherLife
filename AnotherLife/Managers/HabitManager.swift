@@ -321,4 +321,21 @@ class HabitManager: ObservableObject {
             notes = decoded
         }
     }
+    
+    // MARK: - Clear All Data
+    func clearAllData() {
+        // Clear all habits
+        habits.removeAll()
+        UserDefaults.standard.removeObject(forKey: habitsKey)
+        
+        // Clear all entries (this also clears statistics since they're derived from entries)
+        entries.removeAll()
+        UserDefaults.standard.removeObject(forKey: entriesKey)
+        
+        // Clear all notes
+        notes.removeAll()
+        UserDefaults.standard.removeObject(forKey: notesKey)
+        
+        // Note: We keep the theme setting as it's a preference, not data
+    }
 }

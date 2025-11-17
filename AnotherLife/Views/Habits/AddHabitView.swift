@@ -22,6 +22,10 @@ struct AddHabitView: View {
     @State private var targetCompletionsPerDay = 1
     @State private var customDurationDays = 21
     
+    // Animation states
+    @State private var showSuccessAnimation = false
+    @State private var addedHabitId: UUID?
+    
     private let availableColors = [
         "blue", "green", "red", "orange", "purple", "pink", "teal", "indigo",
         "mint", "yellow", "brown", "gray", "cyan", "magenta", "lime", "navy"
@@ -62,11 +66,31 @@ struct AddHabitView: View {
     
     var body: some View {
         NavigationView {
-            Group {
-                if !isCreatingCustom && selectedTemplates.isEmpty && !showingHabitForm {
-                    templateSelectionView
-                } else {
-                    customHabitFormView
+            ZStack {
+                // Main content
+                Group {
+                    if !isCreatingCustom && selectedTemplates.isEmpty && !showingHabitForm {
+                        templateSelectionView
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                removal: .opacity.combined(with: .move(edge: .top))
+                            ))
+                    } else {
+                        customHabitFormView
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                removal: .opacity.combined(with: .move(edge: .top))
+                            ))
+                    }
+                }
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isCreatingCustom)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showingHabitForm)
+                
+                // Success animation overlay
+                if showSuccessAnimation {
+                    SuccessAnimationView()
+                        .transition(.scale.combined(with: .opacity))
+                        .zIndex(1000)
                 }
             }
             .navigationTitle(isCreatingCustom ? "Custom Habit" : (showingHabitForm ? "Create Habit" : "New Habit"))
@@ -75,8 +99,10 @@ struct AddHabitView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if showingHabitForm && !isCreatingCustom {
                         Button("Back") {
-                            showingHabitForm = false
-                            selectedTemplate = nil
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                showingHabitForm = false
+                                selectedTemplate = nil
+                            }
                         }
                     } else {
                         Button("Cancel") {
@@ -91,6 +117,7 @@ struct AddHabitView: View {
                             saveHabits()
                         }
                         .disabled(title.isEmpty)
+                        .fontWeight(.semibold)
                     }
                 }
             }
@@ -100,83 +127,111 @@ struct AddHabitView: View {
     // MARK: - Template Selection View
     private var templateSelectionView: some View {
         ScrollView {
-            VStack(spacing: 24) {
-                // Header
-                VStack(spacing: 12) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 60))
-                        .foregroundColor(.yellow)
-                    
-                    Text("Choose a Habit Template")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.textPrimary)
-                    
-                    Text("Start with a proven template or create your own")
-                        .font(.body)
-                        .foregroundColor(.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 20)
-                
-                // Create Custom Button
-                Button(action: { isCreatingCustom = true }) {
-                    HStack {
-                        Image(systemName: "wand.and.stars")
-                            .font(.title3)
+            VStack(spacing: 0) {
+                // Modern Header with Gradient
+                VStack(spacing: 16) {
+                    // Animated Icon
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue.opacity(0.2), Color.primaryPurple.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 100, height: 100)
+                            .blur(radius: 20)
                         
-                        Text("Create Custom Habit")
-                            .font(.headline)
-                            .fontWeight(.semibold)
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 50, weight: .medium))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue, Color.primaryPurple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                     }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.primaryBlue)
-                    )
-                }
-                .padding(.horizontal, 20)
-                
-                // Selected Templates Count
-                if !selectedTemplates.isEmpty {
-                    HStack {
-                        Text("\(selectedTemplates.count) template\(selectedTemplates.count == 1 ? "" : "s") selected")
+                    .padding(.top, 20)
+                    
+                    VStack(spacing: 8) {
+                        Text("New Habit")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundColor(.textPrimary)
+                        
+                        Text("Choose a template or create your own")
                             .font(.subheadline)
                             .foregroundColor(.textSecondary)
+                    }
+                }
+                .padding(.bottom, 32)
+                
+                // Create Custom Button - Premium Design
+                Button(action: {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                        isCreatingCustom = true
+                    }
+                }) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white.opacity(0.2))
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "wand.and.stars")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
                         
-                        Spacer()
-                        
-                        Button("Continue") {
-                            // Move to form view with first selected template
-                            if let firstTemplate = selectedTemplates.first {
-                                selectTemplate(firstTemplate)
+                        Text("Create Custom Habit")
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue, Color.primaryPurple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .shadow(color: Color.primaryBlue.opacity(0.4), radius: 20, x: 0, y: 10)
+                    )
+                }
+                .buttonStyle(ScaleButtonStyle())
+                .padding(.horizontal, 24)
+                .padding(.bottom, 32)
+                
+                // Templates Section
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Popular Templates")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(.textPrimary)
+                        .padding(.horizontal, 24)
+                    
+                    // Modern Grid Layout
+                    LazyVGrid(columns: [
+                        GridItem(.flexible(), spacing: 16),
+                        GridItem(.flexible(), spacing: 16)
+                    ], spacing: 16) {
+                        ForEach(StarterHabits.templates.prefix(8), id: \.id) { template in
+                            ModernTemplateCard(
+                                template: template,
+                                isSelected: selectedTemplates.contains(template)
+                            ) {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    toggleTemplateSelection(template)
+                                }
                             }
                         }
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primaryBlue)
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 24)
                 }
-                
-                // Templates Grid
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12)
-                ], spacing: 16) {
-                    ForEach(StarterHabits.templates.prefix(8), id: \.id) { template in
-                        TemplateCardView(
-                            template: template,
-                            isSelected: selectedTemplates.contains(template)
-                        ) {
-                            toggleTemplateSelection(template)
-                        }
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+                .padding(.bottom, 40)
             }
         }
     }
@@ -185,70 +240,74 @@ struct AddHabitView: View {
     private var customHabitFormView: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Header
-                headerView
-                
-                // Form
-                VStack(spacing: 20) {
-                    // Basic Info
-                    basicInfoSection
-                    
-                    // Frequency Selection
-                    frequencySection
-                    
-                    // Custom Days (if weekly)
-                    if frequency == .custom {
-                        customDaysSection
+                // Minimal Header
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue.opacity(0.15), Color.primaryPurple.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 80, height: 80)
+                        
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 40, weight: .medium))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue, Color.primaryPurple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                     }
                     
-                    // Duration Selection
-                    durationSection
+                    Text("Create a New Habit")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(.textPrimary)
                     
-                    // Target Completions (if more than 1)
-                    if targetCompletionsPerDay > 1 {
-                        targetCompletionsSection
-                    }
-                    
-                    // Habit Type
-                    habitTypeSection
-                    
-                    // Customization
-                    customizationSection
+                    Text("Build better habits, one day at a time")
+                        .font(.subheadline)
+                        .foregroundColor(.textSecondary)
                 }
-                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 8)
+                
+                // Form Sections
+                VStack(spacing: 20) {
+                    modernBasicInfoSection
+//                    modernFrequencySection
+                    
+//                    if frequency == .custom {
+//                        modernCustomDaysSection
+//                    }
+                    
+                    modernDurationSection
+                    
+                    if targetCompletionsPerDay > 1 {
+                        modernTargetCompletionsSection
+                    }
+                    
+                    modernHabitTypeSection
+                    modernCustomizationSection
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 40)
             }
         }
     }
     
-    // MARK: - Header View
-    private var headerView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.primaryBlue)
-            
-            Text("Create a New Habit")
-                .font(.title2)
-                .fontWeight(.semibold)
-                .foregroundColor(.textPrimary)
-            
-            Text("Build better habits, one day at a time")
-                .font(.body)
-                .foregroundColor(.textSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.top, 20)
-    }
-    
-    // MARK: - Basic Info Section
-    private var basicInfoSection: some View {
+    // MARK: - Modern Basic Info Section
+    private var modernBasicInfoSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Basic Information")
-                .font(.headline)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.textPrimary)
             
             VStack(spacing: 16) {
-                // Title
+                // Title Field
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Habit Title")
                         .font(.subheadline)
@@ -256,10 +315,10 @@ struct AddHabitView: View {
                         .foregroundColor(.textPrimary)
                     
                     TextField("e.g., Exercise for 30 minutes", text: $title)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .textFieldStyle(ModernTextFieldStyle())
                 }
                 
-                // Description
+                // Description Field
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Description (Optional)")
                         .font(.subheadline)
@@ -267,187 +326,100 @@ struct AddHabitView: View {
                         .foregroundColor(.textPrimary)
                     
                     TextField("Add a note about this habit", text: $description)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .textFieldStyle(ModernTextFieldStyle())
                 }
             }
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
-        )
+        .background(ModernCardBackground())
     }
     
-    // MARK: - Frequency Section
-    private var frequencySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Frequency")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
-            
-            VStack(spacing: 12) {
-                ForEach(HabitFrequency.allCases, id: \.self) { freq in
-                    Button(action: { frequency = freq }) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(freq.displayName)
-                                    .font(.body)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.textPrimary)
-                                
-                                Text(frequencyDescription(freq))
-                                    .font(.caption)
-                                    .foregroundColor(.textSecondary)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: frequency == freq ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(frequency == freq ? .primaryBlue : .textSecondary)
-                        }
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(frequency == freq ? Color.primaryBlue.opacity(0.1) : Color.cardBackground)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(frequency == freq ? Color.primaryBlue : Color.clear, lineWidth: 2)
-                                )
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
-        )
-    }
+//    // MARK: - Modern Frequency Section
+//    private var modernFrequencySection: some View {
+//        VStack(alignment: .leading, spacing: 16) {
+//            Text("Frequency")
+//                .font(.system(size: 18, weight: .bold, design: .rounded))
+//                .foregroundColor(.textPrimary)
+//            
+//            VStack(spacing: 12) {
+//                ForEach(HabitFrequency.allCases, id: \.self) { freq in
+//                    ModernFrequencyButton(
+//                        frequency: freq,
+//                        isSelected: frequency == freq,
+//                        description: frequencyDescription(freq)
+//                    ) {
+//                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+//                            frequency = freq
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//        .padding(20)
+//        .background(ModernCardBackground())
+//    }
     
-    // MARK: - Custom Days Section
-    private var customDaysSection: some View {
+    // MARK: - Modern Custom Days Section
+    private var modernCustomDaysSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Select Days")
-                .font(.headline)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.textPrimary)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 12) {
+            HStack(spacing: 12) {
                 ForEach(0..<7, id: \.self) { day in
-                    Button(action: { toggleDay(day) }) {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            toggleDay(day)
+                        }
+                    }) {
                         Text(dayName(day))
-                            .font(.caption)
-                            .fontWeight(.medium)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundColor(customDays.contains(day) ? .white : .textPrimary)
-                            .frame(width: 40, height: 40)
+                            .frame(width: 44, height: 44)
                             .background(
-                                Circle()
-                                    .fill(customDays.contains(day) ? Color.primaryBlue : Color.background)
+                                Group {
+                                    if customDays.contains(day) {
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [Color.primaryBlue, Color.primaryPurple],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                    } else {
+                                        Circle()
+                                            .fill(Color.cardBackground)
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color.separator, lineWidth: 1)
+                                            )
+                                    }
+                                }
                             )
+                            .scaleEffect(customDays.contains(day) ? 1.1 : 1.0)
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
             }
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
-        )
+        .background(ModernCardBackground())
     }
     
-    // MARK: - Habit Type Section
-    private var habitTypeSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Habit Type")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
-            
-            HStack(spacing: 16) {
-                // Positive Habit
-                Button(action: { isPositive = true }) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.title)
-                            .foregroundColor(isPositive ? .primaryGreen : .textSecondary)
-                        
-                        Text("Positive")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.textPrimary)
-                        
-                        Text("Good habit to build")
-                            .font(.caption)
-                            .foregroundColor(.textSecondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(isPositive ? Color.primaryGreen.opacity(0.1) : Color.cardBackground)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(isPositive ? Color.primaryGreen : Color.clear, lineWidth: 2)
-                            )
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                // Negative Habit
-                Button(action: { isPositive = false }) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title)
-                            .foregroundColor(!isPositive ? .primaryRed : .textSecondary)
-                        
-                        Text("Negative")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.textPrimary)
-                        
-                        Text("Bad habit to break")
-                            .font(.caption)
-                            .foregroundColor(.textSecondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(!isPositive ? Color.primaryRed.opacity(0.1) : Color.cardBackground)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(!isPositive ? Color.primaryRed : Color.clear, lineWidth: 2)
-                            )
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
-        )
-    }
-    
-    // MARK: - Duration Section
-    private var durationSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    // MARK: - Modern Duration Section
+    private var modernDurationSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
             Text("Duration")
-                .font(.headline)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.textPrimary)
             
-            // Fixed Duration - Single Option
+            // Fixed Duration Card
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Fixed Duration")
-                        .font(.body)
-                        .fontWeight(.medium)
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundColor(.textPrimary)
                     
                     Text("Set a specific number of days")
@@ -458,24 +430,59 @@ struct AddHabitView: View {
                 Spacer()
                 
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.primaryBlue)
+                    .font(.title3)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.primaryBlue, Color.primaryPurple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
             }
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.primaryBlue.opacity(0.1))
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.primaryBlue.opacity(0.1), Color.primaryPurple.opacity(0.05)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.primaryBlue, lineWidth: 2)
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.primaryBlue.opacity(0.5), Color.primaryPurple.opacity(0.3)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.5
+                            )
                     )
             )
             
-            // Duration Details
+            // Duration Slider
             VStack(alignment: .leading, spacing: 12) {
-                Text("Duration: \(customDurationDays) days")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.textPrimary)
+                HStack {
+                    Text("Duration")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.textPrimary)
+                    
+                    Spacer()
+                    
+                    Text("\(customDurationDays) days")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.primaryBlue, Color.primaryPurple],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                }
                 
                 HStack {
                     Text("21")
@@ -486,7 +493,13 @@ struct AddHabitView: View {
                         get: { Double(customDurationDays) },
                         set: { customDurationDays = Int($0) }
                     ), in: 21...365, step: 1)
-                    .accentColor(.primaryBlue)
+                    .tint(
+                        LinearGradient(
+                            colors: [Color.primaryBlue, Color.primaryPurple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     
                     Text("365")
                         .font(.caption)
@@ -496,15 +509,30 @@ struct AddHabitView: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.background)
+                    .fill(Color.cardBackground)
             )
             
-            // Target Completions Per Day
+            // Target Completions Slider
             VStack(alignment: .leading, spacing: 12) {
-                Text("Target Completions Per Day")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.textPrimary)
+                HStack {
+                    Text("Target Per Day")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.textPrimary)
+                    
+                    Spacer()
+                    
+                    Text("\(targetCompletionsPerDay)x")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.primaryBlue, Color.primaryPurple],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                }
                 
                 HStack {
                     Text("1")
@@ -515,7 +543,13 @@ struct AddHabitView: View {
                         get: { Double(targetCompletionsPerDay) },
                         set: { targetCompletionsPerDay = Int($0) }
                     ), in: 1...10, step: 1)
-                    .accentColor(.primaryBlue)
+                    .tint(
+                        LinearGradient(
+                            colors: [Color.primaryBlue, Color.primaryPurple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     
                     Text("10")
                         .font(.caption)
@@ -529,89 +563,120 @@ struct AddHabitView: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.background)
+                    .fill(Color.cardBackground)
             )
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
-        )
+        .background(ModernCardBackground())
     }
     
-    // MARK: - Target Completions Section
-    private var targetCompletionsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Multi-Completion Setup")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
-            
-            VStack(alignment: .leading, spacing: 12) {
-                Text("This habit requires \(targetCompletionsPerDay) completion\(targetCompletionsPerDay == 1 ? "" : "s") per day.")
-                    .font(.body)
-                    .foregroundColor(.textPrimary)
+    // MARK: - Modern Target Completions Section
+    private var modernTargetCompletionsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "info.circle.fill")
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.primaryBlue, Color.primaryPurple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                 
-                Text("Examples:")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                Text("Multi-Completion Setup")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundColor(.textPrimary)
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("• Prayer 5 times per day")
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
-                    Text("• Drink 8 glasses of water")
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
-                    Text("• Exercise twice daily")
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
-                }
             }
+            
+            Text("This habit requires \(targetCompletionsPerDay) completion\(targetCompletionsPerDay == 1 ? "" : "s") per day.")
+                .font(.subheadline)
+                .foregroundColor(.textPrimary)
         }
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.primaryBlue.opacity(0.1))
+                .fill(
+                    LinearGradient(
+                        colors: [Color.primaryBlue.opacity(0.1), Color.primaryPurple.opacity(0.05)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.primaryBlue.opacity(0.3), lineWidth: 1)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.primaryBlue.opacity(0.3), Color.primaryPurple.opacity(0.2)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
                 )
         )
     }
     
-    // MARK: - Customization Section
-    private var customizationSection: some View {
+    // MARK: - Modern Habit Type Section
+    private var modernHabitTypeSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Habit Type")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(.textPrimary)
+            
+            HStack(spacing: 16) {
+                ModernHabitTypeButton(
+                    icon: "checkmark.circle.fill",
+                    title: "Positive",
+                    subtitle: "Good habit to build",
+                    isSelected: isPositive,
+                    gradient: [Color.primaryGreen, Color.mint]
+                ) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        isPositive = true
+                    }
+                }
+                
+                ModernHabitTypeButton(
+                    icon: "xmark.circle.fill",
+                    title: "Negative",
+                    subtitle: "Bad habit to break",
+                    isSelected: !isPositive,
+                    gradient: [Color.primaryRed, Color.orange]
+                ) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        isPositive = false
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .background(ModernCardBackground())
+    }
+    
+    // MARK: - Modern Customization Section
+    private var modernCustomizationSection: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Customization")
-                .font(.headline)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.textPrimary)
             
             // Color Selection
             VStack(alignment: .leading, spacing: 12) {
                 Text("Color")
                     .font(.subheadline)
-                    .fontWeight(.medium)
+                    .fontWeight(.semibold)
                     .foregroundColor(.textPrimary)
                 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 8), spacing: 12) {
                     ForEach(availableColors, id: \.self) { color in
-                        Button(action: { selectedColor = color }) {
-                            Circle()
-                                .fill(Color(hex: color) ?? .primaryBlue)
-                                .frame(width: 35, height: 35)
-                                .overlay(
-                                    Circle()
-                                        .stroke(selectedColor == color ? Color.white : Color.clear, lineWidth: 3)
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(selectedColor == color ? Color.primaryBlue : Color.clear, lineWidth: 1)
-                                )
-                                .scaleEffect(selectedColor == color ? 1.1 : 1.0)
+                        ModernColorButton(
+                            color: color,
+                            isSelected: selectedColor == color
+                        ) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedColor = color
+                            }
                         }
-                        .buttonStyle(PlainButtonStyle())
                     }
                 }
             }
@@ -620,70 +685,55 @@ struct AddHabitView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Icon")
                     .font(.subheadline)
-                    .fontWeight(.medium)
+                    .fontWeight(.semibold)
                     .foregroundColor(.textPrimary)
                 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
                     ForEach(availableIcons, id: \.self) { icon in
-                        Button(action: { selectedIcon = icon }) {
-                            Image(systemName: icon)
-                                .font(.title3)
-                                .foregroundColor(selectedIcon == icon ? .white : .textPrimary)
-                                .frame(width: 40, height: 40)
-                                .background(
-                                    Circle()
-                                        .fill(selectedIcon == icon ? Color.primaryBlue : Color.background)
-                                )
-                                .scaleEffect(selectedIcon == icon ? 1.1 : 1.0)
+                        ModernIconButton(
+                            icon: icon,
+                            isSelected: selectedIcon == icon,
+                            color: selectedColor
+                        ) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedIcon = icon
+                            }
                         }
-                        .buttonStyle(PlainButtonStyle())
                     }
                 }
             }
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.cardBackground)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
-        )
+        .background(ModernCardBackground())
     }
     
     // MARK: - Helper Methods
-    private var isUnlimitedDuration: Bool {
-        if case .unlimited = duration {
-            return true
-        }
-        return false
-    }
-    
-    
     private func toggleTemplateSelection(_ template: HabitTemplate) {
-        // Open the habit form with the selected template data
         selectedTemplate = template
         selectTemplate(template)
-        showingHabitForm = true
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+            showingHabitForm = true
+        }
     }
     
     private func selectTemplate(_ template: HabitTemplate) {
         title = template.title
         description = template.description
-//        frequency = template.suggestedFrequency
         isPositive = template.isPositive
         selectedColor = template.colorHex
         selectedIcon = template.icon
     }
     
-    private func frequencyDescription(_ frequency: HabitFrequency) -> String {
-        switch frequency {
-        case .daily:
-            return "Every day"
-        case .weekly:
-            return "Once per week"
-        case .custom:
-            return "Custom schedule"
-        }
-    }
+//    private func frequencyDescription(_ frequency: HabitFrequency) -> String {
+//        switch frequency {
+//        case .daily:
+//            return "Every day"
+//        case .weekly:
+//            return "Once per week"
+//        case .custom:
+//            return "Custom schedule"
+//        }
+//    }
     
     private func dayName(_ day: Int) -> String {
         let days = ["S", "M", "T", "W", "T", "F", "S"]
@@ -699,12 +749,19 @@ struct AddHabitView: View {
     }
     
     private func saveHabits() {
+        // Show success animation
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+            showSuccessAnimation = true
+        }
+        
+        // Create and save habits
+        var savedHabitIds: [UUID] = []
+        
         if isCreatingCustom {
-            // Save custom habit
             let habit = Habit(
                 title: title,
                 description: description,
-                frequency: frequency,
+//                frequency: frequency,
                 customDays: customDays,
                 isPositive: isPositive,
                 color: selectedColor,
@@ -714,12 +771,12 @@ struct AddHabitView: View {
                 startDate: Date()
             )
             habitManager.addHabit(habit)
+            savedHabitIds.append(habit.id)
         } else if showingHabitForm && selectedTemplate != nil {
-            // Save single template-based habit (from form)
             let habit = Habit(
                 title: title,
                 description: description,
-                frequency: frequency,
+//                frequency: frequency,
                 customDays: customDays,
                 isPositive: isPositive,
                 color: selectedColor,
@@ -729,106 +786,127 @@ struct AddHabitView: View {
                 startDate: Date()
             )
             habitManager.addHabit(habit)
+            savedHabitIds.append(habit.id)
         } else {
-            // Save selected templates as habits (batch mode)
             for template in selectedTemplates {
                 let habit = Habit(
                     title: template.title,
                     description: template.description,
-                    frequency: template.suggestedFrequency,
+//                    frequency: template.suggestedFrequency,
                     customDays: [],
                     isPositive: template.isPositive,
                     color: template.colorHex,
                     icon: template.icon,
-                    duration: .fixed(days: 21), // Templates default to 21 days
-                    targetCompletionsPerDay: 1, // Templates default to single completion
+                    duration: .fixed(days: 21),
+                    targetCompletionsPerDay: 1,
                     startDate: Date()
                 )
                 habitManager.addHabit(habit)
+                savedHabitIds.append(habit.id)
             }
         }
-        dismiss()
+        
+        // Hide animation and dismiss after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation {
+                showSuccessAnimation = false
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                dismiss()
+            }
+        }
     }
 }
 
-// MARK: - Template Card View
-struct TemplateCardView: View {
+// MARK: - Modern Template Card
+struct ModernTemplateCard: View {
     let template: HabitTemplate
     let isSelected: Bool
     let onTap: () -> Void
     
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            // Main Card Content
+        Button(action: onTap) {
             VStack(spacing: 12) {
-                // Icon
+                // Icon with gradient background
                 ZStack {
                     Circle()
-                        .fill(templateColor.opacity(0.15))
-                        .frame(width: 50, height: 50)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    templateColor.opacity(0.2),
+                                    templateColor.opacity(0.1)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 56, height: 56)
                     
                     Image(systemName: template.icon)
-                        .font(.title2)
-                        .foregroundColor(templateColor)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [templateColor, templateColor.opacity(0.7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                 }
                 
                 // Title
                 Text(template.title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundColor(.textPrimary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .frame(height: 44)
+                    .frame(height: 40)
                 
                 // Description
                 Text(template.description)
-                    .font(.caption)
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundColor(.textSecondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .frame(height: 32)
-                
-//                // Frequency Badge
-//                Text(template.suggestedFrequency.displayName)
-//                    .font(.caption2)
-//                    .fontWeight(.medium)
-//                    .padding(.horizontal, 8)
-//                    .padding(.vertical, 4)
-//                    .background(
-//                        Capsule()
-//                            .fill(templateColor.opacity(0.2))
-//                    )
-                    .foregroundColor(templateColor)
             }
-            .padding(16)
+            .padding(20)
             .frame(maxWidth: .infinity)
-            .frame(height: 160)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(isSelected ? templateColor.opacity(0.1) : Color.cardBackground)
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(
+                        isSelected ?
+                        LinearGradient(
+                            colors: [
+                                templateColor.opacity(0.15),
+                                templateColor.opacity(0.08)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ) :
+                        LinearGradient(
+                            colors: [Color.cardBackground, Color.cardBackground],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(isSelected ? templateColor : Color.clear, lineWidth: 2)
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(
+                                isSelected ? templateColor.opacity(0.6) : Color.clear,
+                                lineWidth: 2
+                            )
                     )
-                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+                    .shadow(
+                        color: isSelected ? templateColor.opacity(0.2) : Color.black.opacity(0.05),
+                        radius: isSelected ? 12 : 8,
+                        x: 0,
+                        y: isSelected ? 6 : 4
+                    )
             )
-            
-            // Selection Button - Top Right Corner
-            Button(action: onTap) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "plus.circle.fill")
-                    .font(.title3)
-                    .foregroundColor(isSelected ? .primaryGreen : .textSecondary)
-                    .background(
-                        Circle()
-                            .fill(Color.cardBackground)
-                            .frame(width: 32, height: 32)
-                            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-                    )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .padding(8)
+            .scaleEffect(isSelected ? 1.02 : 1.0)
         }
+        .buttonStyle(PlainButtonStyle())
     }
     
     private var templateColor: Color {
@@ -836,7 +914,301 @@ struct TemplateCardView: View {
     }
 }
 
+// MARK: - Modern Frequency Button
+struct ModernFrequencyButton: View {
+    let frequency: HabitFrequency
+    let isSelected: Bool
+    let description: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(frequency.displayName)
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(.textPrimary)
+                    
+                    Text(description)
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                }
+                
+                Spacer()
+                
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? Color.primaryBlue : Color.clear)
+                        .frame(width: 24, height: 24)
+                    
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    } else {
+                        Circle()
+                            .stroke(Color.separator, lineWidth: 2)
+                            .frame(width: 24, height: 24)
+                    }
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
+                        isSelected ?
+                        LinearGradient(
+                            colors: [Color.primaryBlue.opacity(0.1), Color.primaryPurple.opacity(0.05)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ) :
+                        LinearGradient(
+                            colors: [Color.cardBackground, Color.cardBackground],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(
+                                isSelected ?
+                                LinearGradient(
+                                    colors: [Color.primaryBlue.opacity(0.5), Color.primaryPurple.opacity(0.3)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ) :
+                                LinearGradient(
+                                    colors: [Color.clear, Color.clear],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                lineWidth: isSelected ? 1.5 : 0
+                            )
+                    )
+            )
+            .scaleEffect(isSelected ? 1.02 : 1.0)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Modern Habit Type Button
+struct ModernHabitTypeButton: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let isSelected: Bool
+    let gradient: [Color]
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 32, weight: .medium))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: gradient,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(.textPrimary)
+                
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
+                        isSelected ?
+                        LinearGradient(
+                            colors: [
+                                gradient[0].opacity(0.15),
+                                gradient[1].opacity(0.08)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ) :
+                        LinearGradient(
+                            colors: [Color.cardBackground, Color.cardBackground],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(
+                                isSelected ?
+                                LinearGradient(
+                                    colors: gradient,
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ) :
+                                LinearGradient(
+                                    colors: [Color.clear, Color.clear],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: isSelected ? 2 : 0
+                            )
+                    )
+            )
+            .scaleEffect(isSelected ? 1.05 : 1.0)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Modern Color Button
+struct ModernColorButton: View {
+    let color: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(Color(hex: color) ?? .primaryBlue)
+                .frame(width: 40, height: 40)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white, lineWidth: isSelected ? 3 : 0)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.primaryBlue, Color.primaryPurple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: isSelected ? 2 : 0
+                        )
+                )
+                .shadow(
+                    color: isSelected ? Color(hex: color)?.opacity(0.4) ?? Color.primaryBlue.opacity(0.4) : Color.clear,
+                    radius: isSelected ? 8 : 0
+                )
+                .scaleEffect(isSelected ? 1.15 : 1.0)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Modern Icon Button
+struct ModernIconButton: View {
+    let icon: String
+    let isSelected: Bool
+    let color: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(isSelected ? .white : .textPrimary)
+                .frame(width: 44, height: 44)
+                .background(
+                    ZStack {
+                        if isSelected {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(hex: color) ?? .primaryBlue,
+                                            (Color(hex: color) ?? .primaryBlue).opacity(0.7)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        } else {
+                            Circle()
+                                .fill(Color.cardBackground)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.separator, lineWidth: 1)
+                                )
+                        }
+                    }
+                )
+                .scaleEffect(isSelected ? 1.1 : 1.0)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Scale Button Style
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Success Animation View
+struct SuccessAnimationView: View {
+    @State private var scale: CGFloat = 0.5
+    @State private var opacity: Double = 0
+    
+    var body: some View {
+        ZStack {
+            // Background overlay
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+            
+            // Success content
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.primaryGreen, Color.mint],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 100, height: 100)
+                        .blur(radius: 20)
+                    
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 60, weight: .medium))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.primaryGreen, Color.mint],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                .scaleEffect(scale)
+                .opacity(opacity)
+                
+                Text("Habit Added!")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .opacity(opacity)
+            }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                scale = 1.0
+                opacity = 1.0
+            }
+        }
+    }
+}
+
 #Preview {
     AddHabitView() 
         .environmentObject(HabitManager())
 }
+

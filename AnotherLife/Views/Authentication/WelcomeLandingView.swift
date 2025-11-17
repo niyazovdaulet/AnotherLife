@@ -41,8 +41,8 @@ struct WelcomeLandingView: View {
             AuthView()
                 .environmentObject(authManager)
         }
-        .onChange(of: authManager.isAuthenticated) { isAuthenticated in
-            if isAuthenticated {
+        .onChange(of: authManager.isAuthenticated) { oldValue, newValue in
+            if newValue {
                 showingAuth = false
             }
         }

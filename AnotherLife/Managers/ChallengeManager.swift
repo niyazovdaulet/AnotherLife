@@ -98,23 +98,16 @@ class ChallengeManager: ObservableObject {
             )
             
             // Save challenge to Firestore
-            print("🔄 Creating challenge document: \(challenge.id)")
             let challengeData = challengeToDictionary(challenge)
-            print("🔄 Challenge data: \(challengeData)")
             try await db.collection("challenges").document(challenge.id).setData(challengeData)
-            print("✅ Challenge document created successfully")
             
             // Create user's progress entry (creator automatically joins)
             let progress = ChallengeProgress(challengeId: challenge.id, userId: currentUserId)
-            print("🔄 Creating progress document: \(progress.id)")
             let progressData = progressToDictionary(progress)
-            print("🔄 Progress data: \(progressData)")
             try await db.collection("challengeProgress").document(progress.id).setData(progressData)
-            print("✅ Progress document created successfully")
             
             // Update local progress cache immediately
             challengeProgress[challenge.id] = progress
-            print("✅ Updated local progress cache for challenge: \(challenge.id)")
             
             // Don't add to myChallenges here - let the listener handle it
             // This prevents conflicts with the real-time listener
@@ -152,9 +145,7 @@ class ChallengeManager: ObservableObject {
         do {
             // Create progress entry
             let progress = ChallengeProgress(challengeId: challenge.id, userId: currentUserId)
-            print("🔄 Creating progress document: \(progress.id)")
             try await db.collection("challengeProgress").document(progress.id).setData(progressToDictionary(progress))
-            print("✅ Progress document created successfully")
             
             // Update local progress cache
             challengeProgress[challenge.id] = progress
@@ -170,7 +161,6 @@ class ChallengeManager: ObservableObject {
                     "memberCount": FieldValue.increment(Int64(1))
                 ])
             } catch {
-                print("⚠️ Could not update member count for challenge \(challenge.id): \(error.localizedDescription)")
                 // Don't fail the join operation if member count update fails
             }
             
@@ -187,7 +177,6 @@ class ChallengeManager: ObservableObject {
             return true
             
         } catch {
-            print("❌ Failed to create progress document: \(error.localizedDescription)")
             errorMessage = "Failed to join challenge: \(error.localizedDescription)"
             isLoading = false
             return false
@@ -216,7 +205,6 @@ class ChallengeManager: ObservableObject {
                     "memberCount": FieldValue.increment(Int64(-1))
                 ])
             } catch {
-                print("⚠️ Could not update member count for challenge \(challenge.id): \(error.localizedDescription)")
                 // Don't fail the leave operation if member count update fails
             }
             
@@ -249,7 +237,6 @@ class ChallengeManager: ObservableObject {
         badgeReward: String? = nil
     ) async -> Bool {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
-            print("❌ updateChallenge: No authenticated user")
             errorMessage = "User not authenticated"
             return false
         }
@@ -257,7 +244,6 @@ class ChallengeManager: ObservableObject {
         // Find the challenge to ensure user is the owner
         guard let challenge = myChallenges.first(where: { $0.id == challengeId }),
               challenge.createdBy == currentUserId else {
-            print("❌ updateChallenge: User is not the creator of this challenge")
             errorMessage = "You can only edit challenges you created"
             return false
         }
@@ -266,7 +252,6 @@ class ChallengeManager: ObservableObject {
         errorMessage = nil
         
         do {
-            print("🔄 Updating challenge: \(challengeId)")
             
             // Calculate new end date based on updated duration
             let newEndDate = Calendar.current.date(byAdding: .day, value: duration, to: challenge.startDate) ?? challenge.endDate
@@ -282,11 +267,9 @@ class ChallengeManager: ObservableObject {
                 "badgeReward": badgeReward as Any
             ]
             
-            print("🔄 Update data: \(updateData)")
             
             // Update challenge in Firestore
             try await db.collection("challenges").document(challengeId).updateData(updateData)
-            print("✅ Successfully updated challenge in Firestore")
             
             // Update local cache
             await MainActor.run {
@@ -311,7 +294,6 @@ class ChallengeManager: ObservableObject {
                         isActive: challenge.isActive
                     )
                     self.myChallenges[index] = updatedChallenge
-                    print("✅ Updated local cache")
                 }
             }
             
@@ -319,7 +301,6 @@ class ChallengeManager: ObservableObject {
             return true
             
         } catch {
-            print("❌ updateChallenge: Error - \(error.localizedDescription)")
             errorMessage = "Failed to update challenge: \(error.localizedDescription)"
             isLoading = false
             return false
@@ -328,13 +309,11 @@ class ChallengeManager: ObservableObject {
     
     func deleteChallenge(_ challenge: Challenge) async -> Bool {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
-            print("❌ deleteChallenge: No authenticated user")
             return false
         }
         
         // Only allow deletion if user created the challenge
         guard challenge.createdBy == currentUserId else {
-            print("❌ deleteChallenge: User is not the creator of this challenge")
             errorMessage = "You can only delete challenges you created"
             return false
         }
@@ -343,7 +322,6 @@ class ChallengeManager: ObservableObject {
         errorMessage = nil
         
         do {
-            print("🔄 Deleting challenge: \(challenge.id)")
             
             // Delete all progress documents for this challenge
             let progressQuery = db.collection("challengeProgress")
@@ -352,7 +330,6 @@ class ChallengeManager: ObservableObject {
             let progressSnapshot = try await progressQuery.getDocuments()
             for document in progressSnapshot.documents {
                 try await document.reference.delete()
-                print("🗑️ Deleted progress document: \(document.documentID)")
             }
             
             // Delete all daily status documents for this challenge
@@ -362,7 +339,6 @@ class ChallengeManager: ObservableObject {
             let dailyStatusSnapshot = try await dailyStatusQuery.getDocuments()
             for document in dailyStatusSnapshot.documents {
                 try await document.reference.delete()
-                print("🗑️ Deleted daily status document: \(document.documentID)")
             }
             
             // Delete all activity documents for this challenge
@@ -372,12 +348,10 @@ class ChallengeManager: ObservableObject {
             let activitySnapshot = try await activityQuery.getDocuments()
             for document in activitySnapshot.documents {
                 try await document.reference.delete()
-                print("🗑️ Deleted activity document: \(document.documentID)")
             }
             
             // Finally, delete the challenge document itself
             try await db.collection("challenges").document(challenge.id).delete()
-            print("🗑️ Deleted challenge document: \(challenge.id)")
             
             // Remove from local arrays
             await MainActor.run {
@@ -387,11 +361,9 @@ class ChallengeManager: ObservableObject {
             }
             
             isLoading = false
-            print("✅ Successfully deleted challenge and all related data")
             return true
             
         } catch {
-            print("❌ deleteChallenge: Error - \(error.localizedDescription)")
             errorMessage = "Failed to delete challenge: \(error.localizedDescription)"
             isLoading = false
             return false
@@ -402,33 +374,26 @@ class ChallengeManager: ObservableObject {
     
     func updateChallengeProgress(_ challengeId: String, newValue: Int) async -> Bool {
         guard let progress = challengeProgress[challengeId] else {
-            print("❌ updateChallengeProgress: Challenge progress not found for challengeId: \(challengeId)")
-            print("❌ updateChallengeProgress: Available progress keys: \(Array(challengeProgress.keys))")
             errorMessage = "Challenge progress not found"
             return false
         }
 
         do {
-            print("🔄 updateChallengeProgress: Updating progress for challengeId: \(challengeId)")
-            print("🔄 updateChallengeProgress: Progress ID: \(progress.id)")
             
             // Calculate progress by counting unique completed days from dailyStatus collection
             let completedDaysCount = await calculateCompletedDaysCount(challengeId: challengeId)
-            print("🔄 updateChallengeProgress: Calculated completed days: \(completedDaysCount)")
 
             let docRef = db.collection("challengeProgress").document(progress.id)
             
             // Check if document exists, if not create it
             let document = try await docRef.getDocument()
             if document.exists {
-                print("✅ updateChallengeProgress: Updating existing document...")
                 // Update progress in Firestore with calculated value
                 try await docRef.updateData([
                     "currentValue": completedDaysCount,
                     "lastUpdatedAt": Timestamp(date: Date())
                 ])
             } else {
-                print("✅ updateChallengeProgress: Creating new document...")
                 // Create the document with full data
                 let progressData = progressToDictionary(progress)
                 var updatedData = progressData
@@ -437,14 +402,12 @@ class ChallengeManager: ObservableObject {
                 try await docRef.setData(updatedData)
             }
 
-            print("✅ updateChallengeProgress: Successfully updated progress to \(completedDaysCount)")
 
             // Update the local progress cache with calculated value
             if var progress = challengeProgress[challengeId] {
                 progress.currentValue = completedDaysCount
                 progress.lastUpdatedAt = Date()
                 challengeProgress[challengeId] = progress
-                print("✅ updateChallengeProgress: Updated local progress cache")
             }
             
             // Update active challenges to reflect any status changes
@@ -462,7 +425,6 @@ class ChallengeManager: ObservableObject {
             return true
 
         } catch {
-            print("❌ updateChallengeProgress: Error - \(error.localizedDescription)")
             errorMessage = "Failed to update progress: \(error.localizedDescription)"
             return false
         }
@@ -481,7 +443,6 @@ class ChallengeManager: ObservableObject {
             
             return snapshot.documents.count
         } catch {
-            print("❌ Failed to calculate completed days: \(error.localizedDescription)")
             return 0
         }
     }
@@ -490,7 +451,6 @@ class ChallengeManager: ObservableObject {
     
     func updateDailyStatus(_ challengeId: String, status: DailyStatus) async -> Bool {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
-            print("❌ updateDailyStatus: User not authenticated")
             errorMessage = "User not authenticated"
             return false
         }
@@ -502,7 +462,6 @@ class ChallengeManager: ObservableObject {
             dateFormatter.dateFormat = "yyyy-MM-dd"
             let dateKey = dateFormatter.string(from: today)
             let documentId = "\(challengeId)_\(currentUserId)_\(dateKey)"
-            print("🔄 updateDailyStatus: Document ID: \(documentId)")
             
             let statusDocument = db.collection("dailyStatus").document(documentId)
             
@@ -514,14 +473,11 @@ class ChallengeManager: ObservableObject {
                 "updatedAt": Timestamp(date: Date())
             ]
             
-            print("🔄 updateDailyStatus: Data to save: \(data)")
             // Use setData with merge: false to ensure idempotent writes
             try await statusDocument.setData(data, merge: false)
-            print("✅ updateDailyStatus: Successfully saved daily status")
             return true
             
         } catch {
-            print("❌ updateDailyStatus: Error - \(error.localizedDescription)")
             errorMessage = "Failed to update daily status: \(error.localizedDescription)"
             return false
         }
@@ -550,7 +506,6 @@ class ChallengeManager: ObservableObject {
             return .notStarted
             
         } catch {
-            print("Failed to get daily status: \(error.localizedDescription)")
             return .notStarted
         }
     }
@@ -612,7 +567,6 @@ class ChallengeManager: ObservableObject {
             return streak
             
         } catch {
-            print("Failed to calculate streak: \(error.localizedDescription)")
             return 0
         }
     }
@@ -646,7 +600,6 @@ class ChallengeManager: ObservableObject {
             return statusMap
             
         } catch {
-            print("Failed to get streak heatmap data: \(error.localizedDescription)")
             return [:]
         }
     }
@@ -688,7 +641,6 @@ class ChallengeManager: ObservableObject {
             return users
             
         } catch {
-            print("Failed to get challenge members: \(error.localizedDescription)")
             return []
         }
     }
@@ -747,7 +699,6 @@ class ChallengeManager: ObservableObject {
             return leaderboardEntries
             
         } catch {
-            print("Failed to get challenge leaderboard: \(error.localizedDescription)")
             return []
         }
     }
@@ -782,7 +733,6 @@ class ChallengeManager: ObservableObject {
             return activities
             
         } catch {
-            print("Failed to get challenge activity: \(error.localizedDescription)")
             return []
         }
     }
@@ -792,7 +742,6 @@ class ChallengeManager: ObservableObject {
     
     func addChallengeActivity(challengeId: String, action: String) async -> Bool {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
-            print("❌ addChallengeActivity: User not authenticated")
             errorMessage = "User not authenticated"
             return false
         }
@@ -813,7 +762,6 @@ class ChallengeManager: ObservableObject {
                     .getDocuments()
                 
                 if !existingActivity.documents.isEmpty {
-                    print("⚠️ addChallengeActivity: Activity already exists for today - skipping duplicate")
                     return true // Return true as the activity already exists
                 }
             }
@@ -826,15 +774,11 @@ class ChallengeManager: ObservableObject {
                 "createdAt": Timestamp(date: Date())
             ]
             
-            print("🔄 addChallengeActivity: Adding activity for challengeId: \(challengeId)")
-            print("🔄 addChallengeActivity: Activity data: \(activityData)")
             
             try await db.collection("challengeActivity").addDocument(data: activityData)
-            print("✅ addChallengeActivity: Successfully added activity")
             return true
             
         } catch {
-            print("❌ addChallengeActivity: Error - \(error.localizedDescription)")
             errorMessage = "Failed to add activity: \(error.localizedDescription)"
             return false
         }
@@ -872,10 +816,8 @@ class ChallengeManager: ObservableObject {
                 action: "completed_challenge"
             )
             
-            print("✅ Challenge completed! Awarded \(challenge.pointsReward) points")
             
         } catch {
-            print("❌ Failed to complete challenge: \(error.localizedDescription)")
         }
     }
     
@@ -930,7 +872,6 @@ class ChallengeManager: ObservableObject {
             return (true, message, challenge.pointsReward)
             
         } catch {
-            print("❌ Failed to complete challenge: \(error.localizedDescription)")
             return (false, "Failed to complete challenge", 0)
         }
     }
@@ -946,7 +887,6 @@ class ChallengeManager: ObservableObject {
                let progress = challengeProgress[challenge.id],
                progress.status != .completed {
                 
-                print("🔄 Auto-completing ended challenge: \(challenge.title)")
                 
                 // Calculate challenge duration
                 let calendar = Calendar.current
@@ -987,9 +927,7 @@ class ChallengeManager: ObservableObject {
                             await awardBadgeIfNeeded(badgeId: badgeReward)
                         }
                         
-                        print("✅ Auto-completed challenge with rewards: \(challenge.title)")
                     } else {
-                        print("✅ Auto-completed challenge without rewards (incomplete): \(challenge.title)")
                     }
                     
                     // Add completion activity
@@ -999,7 +937,6 @@ class ChallengeManager: ObservableObject {
                     )
                     
                 } catch {
-                    print("❌ Failed to auto-complete challenge: \(error.localizedDescription)")
                 }
             }
         }
@@ -1025,7 +962,6 @@ class ChallengeManager: ObservableObject {
             }
             
         } catch {
-            print("❌ Failed to award points: \(error.localizedDescription)")
         }
     }
     
@@ -1041,11 +977,9 @@ class ChallengeManager: ObservableObject {
         removeAllListeners()
         
         guard let currentUserId = Auth.auth().currentUser?.uid else { 
-            print("❌ setupRealTimeListeners: User not authenticated")
             return 
         }
         
-        print("🔄 Setting up real-time listeners for user: \(currentUserId)")
         
         setupRealTimeListenersInternal()
     }
@@ -1063,23 +997,19 @@ class ChallengeManager: ObservableObject {
                 guard let self = self else { return }
                 
                 if let error = error {
-                    print("❌ My challenges listener error: \(error.localizedDescription)")
                     self.errorMessage = "Failed to load challenges: \(error.localizedDescription)"
                     return
                 }
                 
                 guard let documents = snapshot?.documents else { 
-                    print("⚠️ My challenges listener: No documents")
                     return 
                 }
                 
-                print("🔄 My challenges listener: Received \(documents.count) documents")
                 
                 let newChallenges = documents.compactMap { document in
                     self.dictionaryToChallenge(document.data())
                 }
                 
-                print("🔄 My challenges listener: Parsed \(newChallenges.count) challenges")
                 
                 self.myChallenges = newChallenges
                 
@@ -1129,17 +1059,14 @@ class ChallengeManager: ObservableObject {
                 guard let self = self else { return }
                 
                 if let error = error {
-                    print("❌ Progress listener error: \(error.localizedDescription)")
                     self.errorMessage = "Failed to load progress: \(error.localizedDescription)"
                     return
                 }
                 
                 guard let documents = snapshot?.documents else { 
-                    print("⚠️ Progress listener: No documents")
                     return 
                 }
                 
-                print("🔄 Progress listener: Received \(documents.count) documents")
                 
                 var progressDict: [String: ChallengeProgress] = [:]
                 var failedParses = 0
@@ -1150,21 +1077,17 @@ class ChallengeManager: ObservableObject {
                         if let existingProgress = progressDict[progress.challengeId] {
                             if progress.lastUpdatedAt > existingProgress.lastUpdatedAt {
                                 progressDict[progress.challengeId] = progress
-                                print("🔄 Progress listener: Updated progress for challenge \(progress.challengeId) (newer timestamp)")
                             }
                         } else {
                             progressDict[progress.challengeId] = progress
                         }
                     } else {
                         failedParses += 1
-                        print("❌ Progress listener: Failed to parse document \(document.documentID)")
                     }
                 }
                 
-                print("🔄 Progress listener: Parsed \(progressDict.count) progress entries (\(failedParses) failed)")
                 
                 if failedParses > 0 {
-                    print("⚠️ Progress listener: \(failedParses) documents failed to parse - this may indicate data corruption")
                 }
                 
                 self.challengeProgress = progressDict
@@ -1210,13 +1133,12 @@ class ChallengeManager: ObservableObject {
                 await MainActor.run {
                     // Store joined challenges in the dedicated property
                     self.joinedChallenges = joinedChallenges
-                    print("🔄 Loaded \(joinedChallenges.count) joined challenges")
                     
                     // Update active challenges
                     self.updateActiveChallenges()
                 }
             } catch {
-                print("Failed to load joined challenges: \(error.localizedDescription)")
+                // Failed to load joined challenges
             }
         }
     }
@@ -1240,17 +1162,12 @@ class ChallengeManager: ObservableObject {
     // MARK: - Debug and Refresh Methods
     
     func refreshChallengeData() async {
-        print("🔄 Refreshing challenge data...")
         
         // Force refresh from Firebase
         await refreshMyChallenges()
         await refreshPublicChallenges()
         await refreshProgressData()
         
-        print("✅ Challenge data refreshed")
-        print("📊 Active challenges: \(activeChallenges.count)")
-        print("📊 Completed challenges: \(completedChallenges.count)")
-        print("📊 Progress entries: \(challengeProgress.count)")
     }
     
     
@@ -1269,10 +1186,8 @@ class ChallengeManager: ObservableObject {
             
             await MainActor.run {
                 self.myChallenges = challenges
-                print("🔄 Refreshed myChallenges: \(challenges.count) challenges")
             }
         } catch {
-            print("❌ Failed to refresh my challenges: \(error.localizedDescription)")
         }
     }
     
@@ -1290,10 +1205,8 @@ class ChallengeManager: ObservableObject {
             
             await MainActor.run {
                 self.publicChallenges = challenges
-                print("🔄 Refreshed publicChallenges: \(challenges.count) challenges")
             }
         } catch {
-            print("❌ Failed to refresh public challenges: \(error.localizedDescription)")
         }
     }
     
@@ -1315,13 +1228,11 @@ class ChallengeManager: ObservableObject {
             
             await MainActor.run {
                 self.challengeProgress = progressDict
-                print("🔄 Refreshed challengeProgress: \(progressDict.count) entries")
                 
                 // Refresh joined challenges
                 self.loadJoinedChallenges()
             }
         } catch {
-            print("❌ Failed to refresh progress data: \(error.localizedDescription)")
         }
     }
     
@@ -1332,7 +1243,6 @@ class ChallengeManager: ObservableObject {
             for challenge in myChallenges {
                 // Check if progress entry exists for this challenge
                 if challengeProgress[challenge.id] == nil {
-                    print("🔄 Creating missing progress entry for created challenge: \(challenge.id)")
                     
                     do {
                         // Create progress entry for the creator
@@ -1344,10 +1254,8 @@ class ChallengeManager: ObservableObject {
                         await MainActor.run {
                             // Update local cache
                             self.challengeProgress[challenge.id] = progress
-                            print("✅ Created missing progress entry for challenge: \(challenge.id)")
                         }
                     } catch {
-                        print("❌ Failed to create progress entry for challenge \(challenge.id): \(error.localizedDescription)")
                     }
                 }
             }
@@ -1379,7 +1287,6 @@ class ChallengeManager: ObservableObject {
                 // Find and delete duplicates
                 for (challengeId, documentIds) in challengeProgressMap {
                     if documentIds.count > 1 {
-                        print("🔄 Found \(documentIds.count) progress documents for challenge \(challengeId)")
                         
                         // Keep the most recent one, delete the rest
                         var documentsToDelete: [String] = []
@@ -1399,16 +1306,13 @@ class ChallengeManager: ObservableObject {
                             
                             for documentId in documentsToDelete {
                                 try await db.collection("challengeProgress").document(documentId).delete()
-                                print("🗑️ Deleted duplicate progress document: \(documentId)")
                             }
                         }
                     }
                 }
                 
-                print("✅ Cleanup completed")
                 
             } catch {
-                print("❌ Failed to cleanup duplicate progress: \(error.localizedDescription)")
             }
         }
     }
@@ -1490,13 +1394,11 @@ class ChallengeManager: ObservableObject {
     private func awardBadgeIfNeeded(badgeId: String) async {
         // This would typically integrate with AuthManager
         // For now, just print the badge award
-        print("🏆 Badge awarded: \(badgeId)")
     }
     
     // MARK: - Dictionary Conversion Helpers
     
     private func dictionaryToChallenge(_ data: [String: Any]) -> Challenge? {
-        print("🔄 Parsing challenge data: \(data)")
         
         guard let id = data["id"] as? String,
               let title = data["title"] as? String,
@@ -1515,8 +1417,6 @@ class ChallengeManager: ObservableObject {
               let pointsReward = data["pointsReward"] as? Int,
               let memberCount = data["memberCount"] as? Int,
               let isActive = data["isActive"] as? Bool else {
-            print("❌ Failed to parse challenge data - missing required fields")
-            print("❌ Available fields: \(data.keys)")
             return nil
         }
         
@@ -1541,12 +1441,10 @@ class ChallengeManager: ObservableObject {
             isActive: isActive
         )
         
-        print("✅ Successfully parsed challenge: \(challenge.id) - \(challenge.title)")
         return challenge
     }
     
     private func dictionaryToChallengeProgress(_ data: [String: Any]) -> ChallengeProgress? {
-        print("🔄 Parsing progress data: \(data)")
         
         guard let id = data["id"] as? String,
               let challengeId = data["challengeId"] as? String,
@@ -1556,8 +1454,6 @@ class ChallengeManager: ObservableObject {
               let statusRaw = data["status"] as? String,
               let status = ChallengeStatus(rawValue: statusRaw),
               let lastUpdatedAtTimestamp = data["lastUpdatedAt"] as? Timestamp else {
-            print("❌ Failed to parse progress data - missing required fields")
-            print("❌ Available fields: \(data.keys)")
             return nil
         }
         
@@ -1575,7 +1471,6 @@ class ChallengeManager: ObservableObject {
             completedAt: completedAt
         )
         
-        print("✅ Successfully parsed progress: \(progress.id) for challenge \(progress.challengeId)")
         return progress
     }
     
@@ -1590,22 +1485,57 @@ class ChallengeManager: ObservableObject {
         // Get challenges where user has progress (both created and joined)
         var challenges: [Challenge] = []
         
+        let now = Date()
+        
+        // Helper function to check if challenge has 24 hours or less remaining
+        let has24HoursOrLessRemaining: (Challenge) -> Bool = { challenge in
+            let endDate = challenge.endDate
+            if endDate <= now {
+                return true // Already ended
+            }
+            
+            // Only move to inactive if challenge has started
+            if challenge.startDate > now {
+                return false // Challenge hasn't started yet, keep it active
+            }
+            
+            // Calculate total hours remaining
+            let timeInterval = endDate.timeIntervalSince(now)
+            let totalHours = timeInterval / 3600.0
+            
+            // Calculate how long the challenge has been running
+            let runningTime = now.timeIntervalSince(challenge.startDate)
+            let runningHours = runningTime / 3600.0
+            
+            // Only move to inactive if:
+            // 1. Challenge has 24 hours or less remaining, AND
+            // 2. Challenge has been running for at least 1 hour (to avoid moving newly created 1-day challenges immediately)
+            if totalHours <= 24.0 && runningHours >= 1.0 {
+                return true
+            }
+            
+            return false
+        }
+        
         // Add challenges created by user (they are automatically joined)
         challenges.append(contentsOf: myChallenges.filter { challenge in
-            // Must be active, not ended, and not completed
+            // Must be active, not ended, not completed, and have more than 24 hours remaining
             let hasEnded = challenge.endDate <= Date()
             let isCompleted = challengeProgress[challenge.id]?.status == .completed
-            return challenge.isActive && !hasEnded && !isCompleted
+            let has24HoursOrLess = has24HoursOrLessRemaining(challenge)
+            return challenge.isActive && !hasEnded && !isCompleted && !has24HoursOrLess
         })
         
         // Add challenges joined by user (but not created by them)
         challenges.append(contentsOf: joinedChallenges.filter { challenge in
-            // Must be active, not ended, have progress, not completed, and not created by user
+            // Must be active, not ended, have progress, not completed, and have more than 24 hours remaining
             let hasEnded = challenge.endDate <= Date()
             let isCompleted = challengeProgress[challenge.id]?.status == .completed
+            let has24HoursOrLess = has24HoursOrLessRemaining(challenge)
             return challenge.isActive && 
                    !hasEnded && 
                    !isCompleted &&
+                   !has24HoursOrLess &&
                    challengeProgress[challenge.id] != nil &&
                    !myChallenges.contains { $0.id == challenge.id }
         })
@@ -1631,18 +1561,59 @@ class ChallengeManager: ObservableObject {
         // Get challenges where user has progress (both created and joined)
         var challenges: [Challenge] = []
         
-        // Add completed challenges created by user
+        let now = Date()
+        let oneWeekAgo = Calendar.current.date(byAdding: .day, value: -7, to: now) ?? now
+        
+        // Helper function to check if challenge has 24 hours or less remaining
+        let has24HoursOrLessRemaining: (Challenge) -> Bool = { challenge in
+            let endDate = challenge.endDate
+            if endDate <= now {
+                return true // Already ended
+            }
+            
+            // Only move to inactive if challenge has started
+            if challenge.startDate > now {
+                return false // Challenge hasn't started yet, keep it active
+            }
+            
+            // Calculate total hours remaining
+            let timeInterval = endDate.timeIntervalSince(now)
+            let totalHours = timeInterval / 3600.0
+            
+            // Calculate how long the challenge has been running
+            let runningTime = now.timeIntervalSince(challenge.startDate)
+            let runningHours = runningTime / 3600.0
+            
+            // Only move to inactive if:
+            // 1. Challenge has 24 hours or less remaining, AND
+            // 2. Challenge has been running for at least 1 hour (to avoid moving newly created 1-day challenges immediately)
+            if totalHours <= 24.0 && runningHours >= 1.0 {
+                return true
+            }
+            
+            return false
+        }
+        
+        // Add completed challenges created by user (only if ended within the last week)
         challenges.append(contentsOf: myChallenges.filter { challenge in
             let hasEnded = challenge.endDate <= Date()
             let isCompleted = challengeProgress[challenge.id]?.status == .completed
-            return isCompleted || hasEnded
+            let has24HoursOrLess = has24HoursOrLessRemaining(challenge)
+            let endedWithinWeek = challenge.endDate >= oneWeekAgo
+            
+            // Only include if it's completed/ended and ended within the last week
+            return (isCompleted || hasEnded || has24HoursOrLess) && endedWithinWeek
         })
         
-        // Add completed challenges joined by user (but not created by them)
+        // Add completed challenges joined by user (but not created by them, only if ended within the last week)
         challenges.append(contentsOf: joinedChallenges.filter { challenge in
             let hasEnded = challenge.endDate <= Date()
             let isCompleted = challengeProgress[challenge.id]?.status == .completed
-            return (isCompleted || hasEnded) &&
+            let has24HoursOrLess = has24HoursOrLessRemaining(challenge)
+            let endedWithinWeek = challenge.endDate >= oneWeekAgo
+            
+            return (isCompleted || hasEnded || has24HoursOrLess) &&
+            endedWithinWeek &&
             !myChallenges.contains { $0.id == challenge.id }
         })
         
@@ -1650,7 +1621,45 @@ class ChallengeManager: ObservableObject {
         let uniqueChallenges = Array(Set(challenges.map { $0.id }))
             .compactMap { id in challenges.first { $0.id == id } }
         
+        // Archive old challenges to Firebase (challenges that ended more than a week ago)
+        Task {
+            await archiveOldChallenges(olderThan: oneWeekAgo)
+        }
+        
         return uniqueChallenges
+    }
+    
+    // Archive old challenges to Firebase
+    private func archiveOldChallenges(olderThan date: Date) async {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        
+        // Get all challenges that ended more than a week ago
+        let oldChallenges = (myChallenges + joinedChallenges).filter { challenge in
+            challenge.endDate < date
+        }
+        
+        for challenge in oldChallenges {
+            // Check if already archived
+            do {
+                let archivedDoc = try await db.collection("archivedChallenges").document(challenge.id).getDocument()
+                if archivedDoc.exists {
+                    continue // Already archived
+                }
+                
+                // Archive the challenge
+                let challengeData = challengeToDictionary(challenge)
+                try await db.collection("archivedChallenges").document(challenge.id).setData(challengeData)
+                
+                // Archive progress if user has progress
+                if let progress = challengeProgress[challenge.id] {
+                    let progressData = progressToDictionary(progress)
+                    try await db.collection("archivedChallengeProgress").document(progress.id).setData(progressData)
+                }
+            } catch {
+                // Silently fail - archiving is not critical
+                continue
+            }
+        }
     }
     
     var availablePublicChallenges: [Challenge] {

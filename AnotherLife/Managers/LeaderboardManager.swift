@@ -47,7 +47,6 @@ class LeaderboardManager: ObservableObject {
                     
                     if let error = error {
                         self?.errorMessage = "Failed to load leaderboard: \(error.localizedDescription)"
-                        print("❌ Leaderboard error: \(error.localizedDescription)")
                         return
                     }
                     
@@ -90,7 +89,6 @@ class LeaderboardManager: ObservableObject {
             DispatchQueue.main.async {
                 self.isLoading = false
                 self.errorMessage = "Failed to refresh leaderboard: \(error.localizedDescription)"
-                print("❌ Failed to refresh leaderboard: \(error.localizedDescription)")
             }
         }
     }
@@ -114,7 +112,6 @@ class LeaderboardManager: ObservableObject {
             return 0
             
         } catch {
-            print("❌ Failed to get current user rank: \(error.localizedDescription)")
             return 0
         }
     }
@@ -129,7 +126,6 @@ class LeaderboardManager: ObservableObject {
                 let user = try document.data(as: User.self)
                 users.append(user)
             } catch {
-                print("❌ Failed to parse user data: \(error.localizedDescription)")
             }
         }
         
